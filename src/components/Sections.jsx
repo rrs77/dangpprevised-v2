@@ -33,11 +33,12 @@ function Links({ section }) {
   };
   return (
     <div className="link-row">
-      {items.map(([label, href]) => {
+      {items.map(([label, href], index) => {
         const dest = hrefFor(href);
+        const className = section.linkStyle === "button" && index === 0 ? "button" : "text-link";
         return dest.startsWith("/") || dest.startsWith("#")
-          ? <Link key={href + label} className="text-link" to={dest}>{label}</Link>
-          : <a key={href + label} className="text-link" href={dest}>{label}</a>;
+          ? <Link key={href + label} className={className} to={dest}>{label}</Link>
+          : <a key={href + label} className={className} href={dest}>{label}</a>;
       })}
     </div>
   );
@@ -74,9 +75,27 @@ const PEOPLE_GROUPS = [
   { key: "associate", title: "Senior Associates", columns: 3 },
 ];
 
+function personText(person) {
+  const parts = paragraphs(person.bio);
+  const summary = (person.summary || "").trim() || parts[0] || "";
+  return { summary, full: parts };
+}
+
 function PeopleGroups({ people }) {
   const visible = people.filter((person) => !person.hidden);
   const known = new Set(PEOPLE_GROUPS.map((group) => group.key));
+  const [openId, setOpenId] = useState(null);
+  const opener = useRef(null);
+  const openPerson = visible.find((person) => person.id === openId) || null;
+  function open(person, trigger) {
+    opener.current = trigger;
+    setOpenId(person.id);
+  }
+  function close() {
+    setOpenId(null);
+    const trigger = opener.current;
+    if (trigger) requestAnimationFrame(() => trigger.focus());
+  }
   return (
     <div className="people-list">
       {PEOPLE_GROUPS.map((group) => {
@@ -84,65 +103,179 @@ function PeopleGroups({ people }) {
           .filter((person) => (known.has(person.group) ? person.group : "associate") === group.key)
           .sort((a, b) => a.order - b.order);
         if (!members.length) return null;
-        return <Group key={group.key} title={group.title} people={members} columns={group.columns} />;
+        return <Group key={group.key} title={group.title} people={members} columns={group.columns} onOpen={open} />;
       })}
+      {openPerson ? <BioModal person={openPerson} onClose={close} /> : null}
     </div>
   );
 }
 
-function Group({ title, people, columns }) {
+function Group({ title, people, columns, onOpen }) {
   return (
-    <section className="people-group" aria-label={title}>
+    <section className={people.length > 2 ? "people-group wide" : "people-group"} aria-label={title}>
       <h2 className="group-label">{title}</h2>
       <div className={columns === 3 ? "people-grid three" : "people-grid"}>
-        {people.map((person) => <Person key={person.id} person={person} />)}
+        {people.map((person) => <Person key={person.id} person={person} onOpen={onOpen} />)}
       </div>
     </section>
   );
 }
 
-function Person({ person }) {
+function Portrait({ person, framed = true }) {
   const x = person.photoX ?? 50;
   const y = person.photoY ?? 30;
-  const parts = paragraphs(person.bio);
-  const [summary, ...more] = parts;
-  const links = (person.links || []).filter((link) => link.href);
   return (
-    <article className={person.photo ? "person" : "person no-photo"}>
-      {person.photo ? (
-        <div className="portrait">
-          <img
-            src={person.photo}
-            alt={person.photoAlt ? `Portrait of ${person.photoAlt}` : `Portrait of ${person.name}`}
-            loading="lazy"
-            style={{ objectPosition: `${x}% ${y}%`, transform: `scale(${person.photoZoom || 1})`, transformOrigin: `${x}% ${y}%` }}
-          />
-        </div>
-      ) : null}
+    <div className={framed ? "portrait portrait-framed" : "portrait"}>
+      <img
+        src={person.photo}
+        alt={person.photoAlt ? `Portrait of ${person.photoAlt}` : `Portrait of ${person.name}`}
+        loading="lazy"
+        style={{ objectPosition: `${x}% ${y}%`, transform: `scale(${person.photoZoom || 1})`, transformOrigin: `${x}% ${y}%` }}
+      />
+    </div>
+  );
+}
+
+function PersonLinks({ person }) {
+  const links = (person.links || []).filter((link) => link.href);
+  if (!links.length) return null;
+  return (
+    <div className="person-links">
+      {links.map((link) => (
+        <a key={link.href} className="person-link" href={link.href} target="_blank" rel="noopener noreferrer" aria-label={`${person.name} on ${link.label || "LinkedIn"} (opens in a new tab)`}>
+          {link.label || "Link"} <span aria-hidden="true">↗</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function Person({ person, onOpen }) {
+  const { summary, full } = personText(person);
+  const hasMore = full.length > 0;
+  return (
+    <article className={`${person.photo ? "person" : "person no-photo"}${hasMore ? " is-openable" : ""}`}>
+      {person.photo ? <Portrait person={person} /> : null}
       <div className="person-content">
         <p className="role">{person.role}</p>
         <h3>{person.name}</h3>
         {person.specialism ? <p className="specialism">{person.specialism}</p> : null}
         {summary ? <p className="person-summary">{summary}</p> : null}
-        {more.length ? (
-          <details className="person-more">
-            <summary>Read full biography <span aria-hidden="true">↗</span></summary>
-            <div className="prose">
-              {more.map((paragraph) => <p key={paragraph.slice(0, 32)}>{paragraph}</p>)}
-            </div>
-          </details>
+        {hasMore ? (
+          <button type="button" className="person-open" aria-haspopup="dialog" onClick={(event) => onOpen(person, event.currentTarget)}>
+            Read full biography<span className="sr-only">: {person.name}</span> <span aria-hidden="true">↗</span>
+          </button>
         ) : null}
-        {links.length ? (
-          <div className="person-links">
-            {links.map((link) => (
-              <a key={link.href} className="person-link" href={link.href} target="_blank" rel="noopener noreferrer" aria-label={`${person.name} on ${link.label || "LinkedIn"}`}>
-                {link.label || "Link"} <span aria-hidden="true">↗</span>
-              </a>
-            ))}
-          </div>
-        ) : null}
+        <PersonLinks person={person} />
       </div>
     </article>
+  );
+}
+
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
+function BioModal({ person, onClose }) {
+  const dialog = useRef(null);
+  const closeButton = useRef(null);
+  const { full } = personText(person);
+  const titleId = `bio-title-${person.id}`;
+
+  useEffect(() => {
+    const node = dialog.current;
+    if (node && typeof node.showModal === "function" && !node.open) node.showModal();
+    closeButton.current?.focus();
+    const scrollY = window.scrollY;
+    document.body.classList.add("modal-open");
+    return () => {
+      document.body.classList.remove("modal-open");
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  function onKeyDown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const items = [...dialog.current.querySelectorAll(FOCUSABLE)].filter((item) => item.offsetParent !== null || item === document.activeElement);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  return (
+    <dialog
+      ref={dialog}
+      className="bio-modal"
+      aria-labelledby={titleId}
+      onKeyDown={onKeyDown}
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onClick={(event) => { if (event.target === dialog.current) onClose(); }}
+    >
+      <div className="bio-panel">
+        <button ref={closeButton} type="button" className="bio-close" onClick={onClose} aria-label="Close biography">
+          <span aria-hidden="true">×</span>
+        </button>
+        <div className="bio-head">
+          {person.photo ? <Portrait person={person} framed={false} /> : null}
+          <div>
+            <p className="role">{person.role}</p>
+            <h2 id={titleId}>{person.name}</h2>
+            {person.specialism ? <p className="specialism">{person.specialism}</p> : null}
+            <PersonLinks person={person} />
+          </div>
+        </div>
+        <div className="prose bio-body">
+          {person.summary && !full.includes(person.summary.trim()) ? <p>{person.summary}</p> : null}
+          {full.map((paragraph) => <p key={paragraph.slice(0, 32)}>{paragraph}</p>)}
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+function LinkedInPosts({ posts, limit }) {
+  const shown = posts.slice(0, limit || posts.length);
+  if (!shown.length) return <p className="muted">LinkedIn posts will appear here.</p>;
+  return (
+    <ul className="li-grid">
+      {shown.map((post) => (
+        <li key={post.id} className="li-card">
+          {post.embedUrl ? (
+            <iframe className="li-embed" src={post.embedUrl} title={post.title || `LinkedIn post by ${post.author || "Global Place Partners"}`} loading="lazy" allowFullScreen />
+          ) : post.image ? (
+            <img className="li-image" src={post.image} alt={post.imageAlt || ""} loading="lazy" />
+          ) : null}
+          <div className="li-body">
+            <p className="li-meta">
+              <span className="li-badge" aria-hidden="true">in</span>
+              {[post.author, formatDate(post.date)].filter(Boolean).join(" · ")}
+            </p>
+            {post.title ? <h3>{post.title}</h3> : null}
+            {post.excerpt ? <p className="muted li-excerpt">{post.excerpt}</p> : null}
+            <a className="text-link" href={post.url} target="_blank" rel="noopener noreferrer">
+              Read on LinkedIn<span className="sr-only">{post.title ? `: ${post.title}` : ""} (opens in a new tab)</span>
+            </a>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -151,6 +284,40 @@ function Capabilities({ items }) {
   return (
     <ul className="capabilities" aria-label="Connected areas of economic development">
       {items.map((item) => <li key={item.id}>{item.title}</li>)}
+    </ul>
+  );
+}
+
+function Tiles({ items }) {
+  if (!items?.length) return null;
+  return (
+    <ul className="tiles" aria-label="Connected areas of economic development">
+      {items.map((item, index) => (
+        <li key={item.id} className={`tile tile-${(index % 6) + 1}`}>
+          <span className="tile-mark" aria-hidden="true" />
+          <h3>{item.title}</h3>
+          {item.text ? <p>{item.text}</p> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PortraitStrip({ people }) {
+  const visible = (people || []).filter((person) => !person.hidden && person.photo);
+  if (!visible.length) return null;
+  const rank = { founding: 0, principal: 1, associate: 2 };
+  const ordered = [...visible].sort((a, b) => (rank[a.group] ?? 3) - (rank[b.group] ?? 3) || a.order - b.order);
+  return (
+    <ul className="portrait-strip" aria-label="Our people">
+      {ordered.map((person) => (
+        <li key={person.id}>
+          <span className="portrait portrait-round">
+            <img src={person.photo} alt="" style={{ objectPosition: `${person.photoX ?? 50}% ${person.photoY ?? 30}%` }} />
+          </span>
+          <span className="strip-name">{person.name}</span>
+        </li>
+      ))}
     </ul>
   );
 }
@@ -366,6 +533,53 @@ export default function Sections({ sections }) {
         </section>
       );
     }
+    if (section.type === "linkedin") {
+      return (
+        <section key={section.id} id={section.id} className={`${bandClass(section)} linkedin-band`}>
+          <div className="wrap">
+            <div className="li-head">
+              <div>
+                {section.eyebrow ? <p className="eyebrow">{section.eyebrow}</p> : null}
+                {section.heading ? <Heading text={section.heading} accent={section.accentLines !== false} /> : null}
+              </div>
+              <Links section={section} />
+            </div>
+            <LinkedInPosts posts={site.linkedinPosts || []} limit={Number(section.limit) || 0} />
+          </div>
+        </section>
+      );
+    }
+    if (section.type === "stats") {
+      return (
+        <section key={section.id} id={section.id} className={`${bandClass(section)} stats-band`}>
+          <div className="wrap">
+            {section.eyebrow ? <p className="eyebrow">{section.eyebrow}</p> : null}
+            <ul className="stats">
+              {(section.items || []).map((item) => (
+                <li key={item.id} className={item.placeholder || /^\[/.test(item.title || "") ? "stat is-placeholder" : "stat"}>
+                  <span className="stat-value">{item.title}</span>
+                  <span className="stat-label">{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      );
+    }
+    if (section.type === "quote") {
+      return (
+        <section key={section.id} id={section.id} className={`${bandClass(section)} quote-band`}>
+          <div className="wrap quote-grid">
+            <figure className="pull-quote">
+              <blockquote><p>{section.heading}</p></blockquote>
+              {section.body ? <figcaption>{section.body}</figcaption> : null}
+              <Links section={section} />
+            </figure>
+            {section.image ? <img className="quote-art" src={section.image} alt={section.imageAlt || ""} loading="lazy" /> : null}
+          </div>
+        </section>
+      );
+    }
     if (section.type === "diagnostic") {
       return (
         <section key={section.id} id={section.id} className={`${bandClass(section)} diagnostic`}>
@@ -414,7 +628,7 @@ export default function Sections({ sections }) {
                   {paragraphs(section.body).map((paragraph) => <p key={paragraph.slice(0, 48)} className="muted">{paragraph}</p>)}
                 </div>
                 <Links section={section} />
-                <Capabilities items={section.items} />
+                {section.display === "tiles" ? null : <Capabilities items={section.items} />}
               </div>
             </>
           ) : (
@@ -424,6 +638,8 @@ export default function Sections({ sections }) {
             </>
           )}
         </div>
+        {section.display === "tiles" ? <div className="wrap"><Tiles items={section.items} /></div> : null}
+        {section.showPortraits ? <div className="wrap"><PortraitStrip people={site.content.people} /></div> : null}
       </section>
     );
   });

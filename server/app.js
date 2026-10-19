@@ -9,7 +9,12 @@ import {
   addMedia,
   addSubmission,
   addUser,
+  cleanLinkedInPost,
   deleteInsight,
+  deleteLinkedInPost,
+  listLinkedInPosts,
+  saveLinkedInPost,
+  visibleLinkedInPosts,
   deleteUser,
   findUser,
   getDraft,
@@ -142,6 +147,14 @@ app.get("/api/insights", async (_req, res, next) => {
   }
 });
 
+app.get("/api/linkedin-posts", async (_req, res, next) => {
+  try {
+    res.json(visibleLinkedInPosts(await listLinkedInPosts()));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/api/media/:id", async (req, res, next) => {
   try {
     const media = await readMedia(req.params.id);
@@ -263,6 +276,44 @@ app.put("/api/admin/insights/:id", requireUser, async (req, res, next) => {
 app.delete("/api/admin/insights/:id", requireUser, async (req, res, next) => {
   try {
     await deleteInsight(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/admin/linkedin-posts", requireUser, async (_req, res, next) => {
+  try {
+    res.json(await listLinkedInPosts());
+  } catch (error) {
+    next(error);
+  }
+});
+
+function requirePostUrl(post) {
+  if (!post.url) throw Object.assign(new Error("A post URL starting with https:// is required"), { status: 400 });
+  return post;
+}
+
+app.post("/api/admin/linkedin-posts", requireUser, async (req, res, next) => {
+  try {
+    res.json(await saveLinkedInPost(requirePostUrl(cleanLinkedInPost(req.body))));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put("/api/admin/linkedin-posts/:id", requireUser, async (req, res, next) => {
+  try {
+    res.json(await saveLinkedInPost(requirePostUrl(cleanLinkedInPost(req.body)), req.params.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/admin/linkedin-posts/:id", requireUser, async (req, res, next) => {
+  try {
+    await deleteLinkedInPost(req.params.id);
     res.json({ success: true });
   } catch (error) {
     next(error);

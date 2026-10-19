@@ -21,14 +21,15 @@ export function SiteProvider({ preview = false, children }) {
     Promise.all([
       readJson(preview ? "/api/admin/draft" : "/api/content"),
       fetch(preview ? "/api/admin/insights" : "/api/insights", { credentials: "include" }).then((response) => response.ok ? response.json() : []),
-    ]).then(([content, insights]) => {
+      fetch("/api/linkedin-posts").then((response) => response.ok ? response.json() : []).catch(() => []),
+    ]).then(([content, insights, linkedinPosts]) => {
       if (cancelled) return;
       const visible = (Array.isArray(insights) ? insights : []).filter((item) => {
         if (item.status === "published") return true;
         if (item.status === "scheduled" && item.publishAt && new Date(item.publishAt).getTime() <= Date.now()) return true;
         return false;
       });
-      setValue({ content, insights: visible, preview });
+      setValue({ content, insights: visible, linkedinPosts: Array.isArray(linkedinPosts) ? linkedinPosts : [], preview });
     }).catch((reason) => {
       if (!cancelled) setError(reason.message);
     });

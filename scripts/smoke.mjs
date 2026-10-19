@@ -41,6 +41,7 @@ const auth = { headers: { "Content-Type": "application/json", cookie } };
 
 const draft = await request("/api/admin/draft", { headers: { cookie } });
 const marker = "Edited from the admin.";
+const original = draft.json.pages[0].sections[0].subheading;
 draft.json.pages[0].sections[0].subheading = marker;
 const saved = await request("/api/admin/draft", { method: "PUT", ...auth, body: JSON.stringify(draft.json) });
 assert(saved.json.success, "save draft failed");
@@ -50,6 +51,75 @@ const published = await request("/api/admin/publish", { method: "POST", ...auth,
 assert(published.json.success, "publish failed");
 const after = await request("/api/content");
 assert(after.json.pages[0].sections[0].subheading === marker, "publish did not change public content");
+// Put the real supporting line back so the smoke run never leaves its marker on the site.
+const cleanDraft = await request("/api/admin/draft", { headers: { cookie } });
+cleanDraft.json.pages[0].sections[0].subheading = original;
+await request("/api/admin/draft", { method: "PUT", ...auth, body: JSON.stringify(cleanDraft.json) });
+const republished = await request("/api/admin/publish", { method: "POST", ...auth, body: JSON.stringify({ note: "Smoke cleanup" }) });
+assert(republished.json.success, "cleanup publish failed");
+const cleaned = await request("/api/content");
+assert(cleaned.json.pages[0].sections[0].subheading === original, "smoke marker was left on the site");
+
+// Employees: add with an uploaded photo, publish, check the public site, reorder, then delete.
+const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+const form = new FormData();
+form.append("image", new Blob([png], { type: "image/png" }), "smoke.png");
+form.append("alt", "Smoke Tester");
+const uploaded = await request("/api/admin/upload", { method: "POST", headers: { cookie }, body: form });
+assert(uploaded.json?.url?.startsWith("/api/media/"), "photo upload failed");
+const photo = await fetch(base + uploaded.json.url);
+assert(photo.ok && photo.headers.get("content-type") === "image/png", "uploaded photo not served");
+
+const peopleDraft = (await request("/api/admin/draft", { headers: { cookie } })).json;
+const newcomer = {
+  id: "smoke-person",
+  name: "Smoke Tester",
+  role: "Senior Associate",
+  group: "associate",
+  order: 99,
+  hidden: false,
+  photo: uploaded.json.url,
+  photoAlt: "Smoke Tester",
+  specialism: "Testing · Quality",
+  summary: "Short card summary.",
+  bio: "Full biography paragraph one.\n\nFull biography paragraph two.",
+  links: [{ label: "LinkedIn", href: "https://www.linkedin.com/in/example" }, { label: "Bad", href: "javascript:alert(1)" }],
+};
+peopleDraft.people.push(newcomer);
+assert((await request("/api/admin/draft", { method: "PUT", ...auth, body: JSON.stringify(peopleDraft) })).json.success, "save person failed");
+const reloaded = (await request("/api/admin/draft", { headers: { cookie } })).json.people.find((item) => item.id === "smoke-person");
+assert(reloaded && reloaded.summary === "Short card summary." && reloaded.specialism === "Testing · Quality", "person fields not saved");
+assert(reloaded.links.length === 1 && reloaded.links[0].href === "https://www.linkedin.com/in/example", "unsafe link was not removed");
+assert((await request("/api/admin/publish", { method: "POST", ...auth, body: JSON.stringify({ note: "Smoke person" }) })).json.success, "publish person failed");
+const publicPerson = (await request("/api/content")).json.people.find((item) => item.id === "smoke-person");
+assert(publicPerson?.photo === uploaded.json.url && publicPerson.bio.includes("paragraph two"), "person not public after publish");
+
+const reorderDraft = (await request("/api/admin/draft", { headers: { cookie } })).json;
+reorderDraft.people.find((item) => item.id === "smoke-person").order = 0;
+reorderDraft.people.find((item) => item.id === "smoke-person").hidden = true;
+await request("/api/admin/draft", { method: "PUT", ...auth, body: JSON.stringify(reorderDraft) });
+const reordered = (await request("/api/admin/draft", { headers: { cookie } })).json.people.find((item) => item.id === "smoke-person");
+assert(reordered.order === 0 && reordered.hidden === true, "reorder or hide not saved");
+
+const removeDraft = (await request("/api/admin/draft", { headers: { cookie } })).json;
+removeDraft.people = removeDraft.people.filter((item) => item.id !== "smoke-person");
+await request("/api/admin/draft", { method: "PUT", ...auth, body: JSON.stringify(removeDraft) });
+await request("/api/admin/publish", { method: "POST", ...auth, body: JSON.stringify({ note: "Smoke person removed" }) });
+assert(!(await request("/api/content")).json.people.some((item) => item.id === "smoke-person"), "person not deleted");
+
+// LinkedIn posts: create, edit, hide, delete.
+const seededPosts = (await request("/api/linkedin-posts")).json;
+assert(Array.isArray(seededPosts) && seededPosts.length >= 2, "seeded LinkedIn posts missing");
+const badPost = await request("/api/admin/linkedin-posts", { method: "POST", ...auth, body: JSON.stringify({ url: "javascript:alert(1)" }) });
+assert(badPost.status === 400, "unsafe post URL accepted");
+const post = (await request("/api/admin/linkedin-posts", { method: "POST", ...auth, body: JSON.stringify({ url: "https://www.linkedin.com/posts/example-smoke", title: "Smoke post", excerpt: "Excerpt", author: "Smoke", date: "2030-01-02", embedUrl: "https://evil.example/embed" }) })).json;
+assert(post?.id && post.embedUrl === "", "post create failed or unsafe embed kept");
+assert((await request("/api/linkedin-posts")).json[0].id === post.id, "newest post should be first");
+await request(`/api/admin/linkedin-posts/${post.id}`, { method: "PUT", ...auth, body: JSON.stringify({ ...post, title: "Smoke post edited", hidden: true }) });
+assert(!(await request("/api/linkedin-posts")).json.some((item) => item.id === post.id), "hidden post still public");
+assert((await request("/api/admin/linkedin-posts", { headers: { cookie } })).json.find((item) => item.id === post.id)?.title === "Smoke post edited", "post edit not saved");
+await request(`/api/admin/linkedin-posts/${post.id}`, { method: "DELETE", headers: { cookie } });
+assert(!(await request("/api/admin/linkedin-posts", { headers: { cookie } })).json.some((item) => item.id === post.id), "post not deleted");
 
 const editor = await request("/api/admin/users", { method: "POST", ...auth, body: JSON.stringify({ name: "Editor", email: "editor@example.com", password: "editor-pass-1", role: "editor" }) });
 assert(editor.json.success, "create editor failed");

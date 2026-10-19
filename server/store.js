@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { blankState } from "./seed.js";
+import { blankState, createLinkedInPosts } from "./seed.js";
 
 let dataDir = path.join(process.cwd(), "data");
 let mediaDir = path.join(dataDir, "media");
@@ -35,14 +35,24 @@ function enqueue(fn) {
   return job;
 }
 
+function withDefaults(state) {
+  if (!Array.isArray(state.linkedinPosts)) state.linkedinPosts = createLinkedInPosts();
+  if (!Array.isArray(state.insights)) state.insights = [];
+  if (!Array.isArray(state.media)) state.media = [];
+  if (!Array.isArray(state.users)) state.users = [];
+  if (!Array.isArray(state.submissions)) state.submissions = [];
+  if (!Array.isArray(state.revisions)) state.revisions = [];
+  return state;
+}
+
 async function read() {
   if (!pool) {
-    if (filePath && fs.existsSync(filePath)) return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (filePath && fs.existsSync(filePath)) return withDefaults(JSON.parse(fs.readFileSync(filePath, "utf8")));
     if (!memoryState) memoryState = blankState();
-    return memoryState;
+    return withDefaults(memoryState);
   }
   const result = await pool.query("select data from cms_state where id = 'current'");
-  return result.rows[0].data;
+  return withDefaults(result.rows[0].data);
 }
 
 async function write(state) {
@@ -244,11 +254,62 @@ export function getPublished() {
   return enqueue(async () => (await read()).published);
 }
 
+const PERSON_GROUPS = ["founding", "principal", "associate"];
+
+function text(value, max = 20000) {
+  return typeof value === "string" ? value.slice(0, max) : "";
+}
+
+function safeUrl(value) {
+  const url = text(value, 2000).trim();
+  if (!url) return "";
+  if (url.startsWith("/") && !url.startsWith("//")) return url;
+  return /^https?:\/\//i.test(url) ? url : "";
+}
+
+export function cleanPerson(input = {}, index = 0) {
+  const number = (value, fallback, min, max) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+  };
+  const name = text(input.name, 200).trim() || "Unnamed person";
+  const id = text(input.id, 120).trim() || `person-${crypto.randomBytes(4).toString("hex")}`;
+  const links = (Array.isArray(input.links) ? input.links : [])
+    .map((link) => ({ label: text(link?.label, 80).trim() || "LinkedIn", href: safeUrl(link?.href) }))
+    .filter((link) => link.href)
+    .slice(0, 5);
+  return {
+    ...input,
+    id,
+    name,
+    role: text(input.role, 200),
+    group: PERSON_GROUPS.includes(input.group) ? input.group : "associate",
+    order: number(input.order, index + 1, 0, 10000),
+    hidden: Boolean(input.hidden),
+    photo: safeUrl(input.photo),
+    photoAlt: text(input.photoAlt, 300),
+    photoX: number(input.photoX, 50, 0, 100),
+    photoY: number(input.photoY, 30, 0, 100),
+    photoZoom: number(input.photoZoom, 1, 1, 3),
+    specialism: text(input.specialism, 300),
+    summary: text(input.summary, 4000),
+    bio: text(input.bio),
+    links,
+  };
+}
+
 export function saveDraft(doc, role) {
   return update((state) => {
     if (!doc?.settings || !Array.isArray(doc.pages) || !Array.isArray(doc.people)) {
       throw Object.assign(new Error("Invalid document"), { status: 400 });
     }
+    const seen = new Set();
+    doc.people = doc.people.map((person, index) => {
+      const clean = cleanPerson(person, index);
+      if (seen.has(clean.id)) clean.id = `${clean.id}-${crypto.randomBytes(2).toString("hex")}`;
+      seen.add(clean.id);
+      return clean;
+    });
     if (role !== "superuser") doc.secrets = state.draft.secrets;
     state.draft = doc;
     return state;
@@ -323,6 +384,58 @@ export function saveInsight(input, id) {
 export function deleteInsight(id) {
   return update((state) => {
     state.insights = state.insights.filter((item) => item.id !== id);
+    return state;
+  });
+}
+
+export function cleanLinkedInPost(body = {}) {
+  const date = text(body.date, 40).trim();
+  const embedUrl = text(body.embedUrl, 2000).trim();
+  return {
+    url: safeUrl(body.url),
+    embedUrl: /^https:\/\/www\.linkedin\.com\/embed\//i.test(embedUrl) ? embedUrl : "",
+    title: text(body.title, 300).trim(),
+    excerpt: text(body.excerpt, 3000),
+    author: text(body.author, 200).trim(),
+    date: /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : "",
+    image: safeUrl(body.image),
+    imageAlt: text(body.imageAlt, 300),
+    hidden: Boolean(body.hidden),
+  };
+}
+
+export function visibleLinkedInPosts(posts) {
+  return (posts || [])
+    .filter((post) => !post.hidden && post.url)
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+}
+
+export function listLinkedInPosts() {
+  return enqueue(async () => (await read()).linkedinPosts);
+}
+
+export function saveLinkedInPost(input, id) {
+  let saved = null;
+  return update((state) => {
+    const now = new Date().toISOString();
+    if (id) {
+      const index = state.linkedinPosts.findIndex((item) => item.id === id);
+      if (index < 0) throw Object.assign(new Error("Post not found"), { status: 404 });
+      saved = { ...state.linkedinPosts[index], ...input, id, updatedAt: now };
+      state.linkedinPosts[index] = saved;
+    } else {
+      saved = { id: `li-${crypto.randomBytes(4).toString("hex")}`, createdAt: now, updatedAt: now, ...input };
+      state.linkedinPosts.unshift(saved);
+    }
+    return state;
+  }).then(() => saved);
+}
+
+export function deleteLinkedInPost(id) {
+  return update((state) => {
+    const before = state.linkedinPosts.length;
+    state.linkedinPosts = state.linkedinPosts.filter((item) => item.id !== id);
+    if (state.linkedinPosts.length === before) throw Object.assign(new Error("Post not found"), { status: 404 });
     return state;
   });
 }

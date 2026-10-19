@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const TYPES = ["hero", "text", "modes", "diagram", "diagnostic", "people", "insights", "contact", "cta"];
+const TYPES = ["hero", "text", "stats", "quote", "linkedin", "modes", "diagram", "diagnostic", "people", "insights", "contact", "cta"];
 const BACKGROUNDS = ["paper", "cream", "white", "sage", "deep", "green", "pine", "teal"];
 const FONTS = ["Outfit", "Source Sans 3", "Fraunces", "Libre Franklin", "Manrope"];
 
@@ -25,6 +25,7 @@ export default function Admin() {
   const [email, setEmail] = useState("");
   const [draft, setDraft] = useState(null);
   const [insights, setInsights] = useState([]);
+  const [linkedinPosts, setLinkedinPosts] = useState([]);
   const [media, setMedia] = useState([]);
   const [users, setUsers] = useState([]);
   const [revisions, setRevisions] = useState([]);
@@ -39,12 +40,14 @@ export default function Admin() {
     const current = await api("/api/admin/session");
     setSession(current);
     if (!current.authenticated) return;
-    const [nextDraft, nextInsights, nextMedia, nextRevisions] = await Promise.all([
+    const [nextDraft, nextInsights, nextMedia, nextRevisions, nextPosts] = await Promise.all([
       api("/api/admin/draft"),
       api("/api/admin/insights"),
       api("/api/admin/media"),
       api("/api/admin/revisions"),
+      api("/api/admin/linkedin-posts"),
     ]);
+    setLinkedinPosts(nextPosts);
     setDraft(nextDraft);
     setInsights(nextInsights);
     setMedia(nextMedia);
@@ -80,7 +83,8 @@ export default function Admin() {
   async function save() {
     setStatus("Saving…");
     await api("/api/admin/draft", { method: "PUT", body: JSON.stringify(draft) });
-    setStatus("Draft saved.");
+    setDraft(await api("/api/admin/draft"));
+    setStatus("Draft saved. Publish to put it on the site.");
   }
 
   async function publishDraft() {
@@ -127,7 +131,7 @@ export default function Admin() {
         </div>
       </div>
       <div className="admin-tabs">
-        {["pages", "people", "insights", "media", "navigation", "brand", "form", "access", "history"].map((item) => (
+        {["pages", "people", "insights", "linkedin", "media", "navigation", "brand", "form", "access", "history"].map((item) => (
           <button key={item} type="button" aria-pressed={tab === item} onClick={() => setTab(item)}>{item}</button>
         ))}
       </div>
@@ -172,8 +176,9 @@ export default function Admin() {
           </div>
         </div>
       )}
-      {tab === "people" && <PeopleEditor people={draft.people} media={media} patch={patch} />}
+      {tab === "people" && <PeopleEditor people={draft.people} media={media} patch={patch} onMedia={setMedia} onSave={() => save().catch((reason) => setStatus(reason.message))} />}
       {tab === "insights" && <InsightsEditor insights={insights} media={media} onChange={setInsights} />}
+      {tab === "linkedin" && <LinkedInEditor posts={linkedinPosts} media={media} onChange={setLinkedinPosts} onMedia={setMedia} />}
       {tab === "media" && <MediaLibrary media={media} onChange={setMedia} />}
       {tab === "navigation" && <NavEditor draft={draft} patch={patch} />}
       {tab === "brand" && <BrandEditor draft={draft} patch={patch} media={media} superuser={superuser} />}
@@ -245,6 +250,9 @@ function SectionEditor({ section, onChange, onDuplicate, onDelete, media }) {
       <Field label="Heading" value={section.heading} onChange={(value) => set("heading", value)} area />
       <Field label="Supporting line" value={section.subheading} onChange={(value) => set("subheading", value)} />
       <Field label="Body" value={section.body} onChange={(value) => set("body", value)} area />
+      {section.type === "linkedin" && (
+        <label><span>Number of posts to show (0 = all)</span><input type="number" min="0" value={section.limit ?? 0} onChange={(event) => set("limit", Number(event.target.value) || 0)} /></label>
+      )}
       {section.type === "diagnostic" && (
         <>
           <Field label="Note under the questions" value={section.note || ""} onChange={(value) => set("note", value)} area />
@@ -261,8 +269,15 @@ function SectionEditor({ section, onChange, onDuplicate, onDelete, media }) {
       <label><span>Background</span><select value={section.background} onChange={(event) => set("background", event.target.value)}>{BACKGROUNDS.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label><span>Spacing</span><select value={section.spacing} onChange={(event) => set("spacing", event.target.value)}><option>compact</option><option>normal</option><option>generous</option></select></label>
       <label><span>Layout</span><select value={section.layout} onChange={(event) => set("layout", event.target.value)}><option>stack</option><option>split</option><option>split-reverse</option></select></label>
+      <label><span>First link style</span><select value={section.linkStyle || "link"} onChange={(event) => set("linkStyle", event.target.value === "link" ? "" : event.target.value)}><option value="link">link</option><option value="button">button</option></select></label>
+      {section.type === "text" && (
+        <>
+          <label><span>Items shown as</span><select value={section.display || "list"} onChange={(event) => set("display", event.target.value === "list" ? "" : event.target.value)}><option value="list">list</option><option value="tiles">tiles</option></select></label>
+          <label className="check"><input type="checkbox" checked={!!section.showPortraits} onChange={(event) => set("showPortraits", event.target.checked)} /> Show a row of team portraits</label>
+        </>
+      )}
       <label className="check"><input type="checkbox" checked={!!section.hidden} onChange={(event) => set("hidden", event.target.checked)} /> Hide section</label>
-      {(section.type === "modes" || section.type === "diagram" || section.type === "diagnostic" || section.type === "text") && (
+      {["modes", "diagram", "diagnostic", "text", "stats"].includes(section.type) && (
         <ItemEditor items={section.items || []} onChange={(items) => set("items", items)} diagram={section.type === "diagram"} labelled={section.type === "diagnostic"} />
       )}
       <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -314,7 +329,44 @@ function MediaSelect({ media, onPick }) {
   );
 }
 
-function PeopleEditor({ people, patch, media }) {
+async function uploadImage(file, alt) {
+  const body = new FormData();
+  body.append("image", file);
+  body.append("alt", alt || "");
+  return api("/api/admin/upload", { method: "POST", body });
+}
+
+function ImageUpload({ label = "Upload a photo", alt, onUploaded, onMedia }) {
+  const [state, setState] = useState("");
+  return (
+    <label><span>{label}</span>
+      <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        setState("Uploading…");
+        try {
+          const record = await uploadImage(file, alt);
+          onUploaded(record.url);
+          if (onMedia) onMedia(await api("/api/admin/media"));
+          setState("Uploaded. Save or publish to keep it.");
+        } catch (reason) {
+          setState(reason.message);
+        }
+        event.target.value = "";
+      }} />
+      {state && <small className="note" role="status">{state}</small>}
+    </label>
+  );
+}
+
+const GROUP_LABELS = { founding: "Founding Partners", principal: "Principals", associate: "Senior Associates" };
+
+function blankPerson(next) {
+  const order = Math.max(0, ...next.people.filter((item) => item.group === "associate").map((item) => Number(item.order) || 0)) + 1;
+  return { id: uid("person"), name: "New person", role: "Senior Associate", group: "associate", order, hidden: false, photo: "", photoAlt: "", photoX: 50, photoY: 30, photoZoom: 1, specialism: "", summary: "", bio: "", links: [{ label: "LinkedIn", href: "" }] };
+}
+
+function PeopleEditor({ people, patch, media, onMedia, onSave }) {
   const [id, setId] = useState(people[0]?.id);
   const person = people.find((item) => item.id === id) || people[0];
   function set(key, value) {
@@ -323,47 +375,138 @@ function PeopleEditor({ people, patch, media }) {
       target[key] = value;
     });
   }
+  function move(groupKey, personId, delta) {
+    patch((next) => {
+      const members = next.people.filter((item) => item.group === groupKey).sort((a, b) => a.order - b.order);
+      const index = members.findIndex((item) => item.id === personId);
+      const target = index + delta;
+      if (index < 0 || target < 0 || target >= members.length) return;
+      const [item] = members.splice(index, 1);
+      members.splice(target, 0, item);
+      members.forEach((entry, position) => { entry.order = position + 1; });
+    });
+  }
+  const linkedin = person?.links?.find((link) => /linkedin/i.test(link.label || link.href || ""))?.href || person?.links?.[0]?.href || "";
   return (
     <div className="admin-main">
       <div className="panel stack">
-        {people.map((item, index) => (
-          <div key={item.id} style={{ display: "flex", gap: "0.3rem" }}>
-            <button type="button" onClick={() => setId(item.id)}>{item.name}</button>
-            <button type="button" aria-label={`Move ${item.name} up`} onClick={() => patch((next) => swap(next.people, index, -1))}>Up</button>
-            <button type="button" aria-label={`Move ${item.name} down`} onClick={() => patch((next) => swap(next.people, index, 1))}>Down</button>
-          </div>
-        ))}
-        <button type="button" onClick={() => patch((next) => {
-          const created = { id: uid("person"), name: "New person", role: "Senior Associate", group: "associate", order: next.people.length + 1, hidden: false, photo: "", photoAlt: "", photoX: 50, photoY: 30, photoZoom: 1, specialism: "", bio: "", links: [] };
+        {Object.entries(GROUP_LABELS).map(([groupKey, label]) => {
+          const members = people.filter((item) => (GROUP_LABELS[item.group] ? item.group : "associate") === groupKey).sort((a, b) => a.order - b.order);
+          return (
+            <div key={groupKey} className="stack">
+              <strong>{label}</strong>
+              {members.length === 0 && <span className="note">Nobody in this group.</span>}
+              {members.map((item) => (
+                <div key={item.id} style={{ display: "flex", gap: "0.3rem" }}>
+                  <button type="button" aria-pressed={item.id === person?.id} onClick={() => setId(item.id)} style={{ flex: 1, textAlign: "left" }}>{item.hidden ? "Hidden: " : ""}{item.name}</button>
+                  <button type="button" aria-label={`Move ${item.name} up`} onClick={() => move(groupKey, item.id, -1)}>Up</button>
+                  <button type="button" aria-label={`Move ${item.name} down`} onClick={() => move(groupKey, item.id, 1)}>Down</button>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+        <button type="button" className="primary" onClick={() => patch((next) => {
+          const created = blankPerson(next);
           next.people.push(created);
           setId(created.id);
-        })}>Add person</button>
+        })}>Add employee</button>
+        <p className="note">Changes are kept in the draft. Use Save draft, then Publish, to put them on the site.</p>
       </div>
       {person && (
-        <div className="panel stack">
+        <div className="panel stack" aria-label={`Editing ${person.name}`}>
+          <h2>{person.name}</h2>
           <Field label="Name" value={person.name} onChange={(value) => set("name", value)} />
-          <Field label="Role" value={person.role} onChange={(value) => set("role", value)} />
+          <Field label="Role (shown above the name, e.g. Senior Associate)" value={person.role} onChange={(value) => set("role", value)} />
           <label><span>Group</span>
             <select value={person.group} onChange={(event) => set("group", event.target.value)}>
-              <option value="founding">Founding Partners</option>
-              <option value="principal">Principals</option>
-              <option value="associate">Senior Associates</option>
+              {Object.entries(GROUP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
+          <label><span>Order within the group (1 is first)</span><input type="number" min="0" value={person.order ?? 0} onChange={(event) => set("order", Number(event.target.value) || 0)} /></label>
           <Field label="Specialism line" value={person.specialism || ""} onChange={(value) => set("specialism", value)} />
-          <Field label="Biography (first paragraph shows on the card; the rest opens under Read full biography)" value={person.bio} onChange={(value) => set("bio", value)} area />
-          <Field label="Portrait address" value={person.photo} onChange={(value) => set("photo", value)} />
+          <Field label="Summary for the card (leave empty to use the first paragraph of the biography)" value={person.summary || ""} onChange={(value) => set("summary", value)} area />
+          <Field label="Full biography (opens in the pop-up; separate paragraphs with a blank line)" value={person.bio} onChange={(value) => set("bio", value)} area />
+          <Field label="LinkedIn URL" value={linkedin} onChange={(value) => set("links", value ? [{ label: "LinkedIn", href: value.trim() }] : [])} />
+          {person.photo ? <img src={person.photo} alt="" style={{ width: 140, height: 140, objectFit: "cover" }} /> : <p className="note">No photo yet.</p>}
+          <ImageUpload alt={person.name} onMedia={onMedia} onUploaded={(url) => set("photo", url)} />
+          <Field label="Or photo address (URL or /images/… path)" value={person.photo} onChange={(value) => set("photo", value)} />
           <MediaSelect media={media} onPick={(url) => set("photo", url)} />
           <Field label="Portrait description" value={person.photoAlt} onChange={(value) => set("photoAlt", value)} />
-          <label><span>Crop horizontal ({person.photoX})</span><input type="range" min="0" max="100" value={person.photoX} onChange={(event) => set("photoX", Number(event.target.value))} /></label>
-          <label><span>Crop vertical ({person.photoY})</span><input type="range" min="0" max="100" value={person.photoY} onChange={(event) => set("photoY", Number(event.target.value))} /></label>
-          <label><span>Crop zoom ({person.photoZoom})</span><input type="range" min="1" max="2" step="0.05" value={person.photoZoom} onChange={(event) => set("photoZoom", Number(event.target.value))} /></label>
-          <Field label="Link label" value={person.links?.[0]?.label || ""} onChange={(value) => set("links", [{ label: value, href: person.links?.[0]?.href || "" }])} />
-          <Field label="Link address" value={person.links?.[0]?.href || ""} onChange={(value) => set("links", [{ label: person.links?.[0]?.label || "Link", href: value }])} />
-          <label className="check"><input type="checkbox" checked={!!person.hidden} onChange={(event) => set("hidden", event.target.checked)} /> Hide</label>
-          <button type="button" onClick={() => patch((next) => { next.people = next.people.filter((item) => item.id !== person.id); })}>Remove person</button>
+          <label><span>Crop horizontal ({person.photoX})</span><input type="range" min="0" max="100" value={person.photoX ?? 50} onChange={(event) => set("photoX", Number(event.target.value))} /></label>
+          <label><span>Crop vertical ({person.photoY})</span><input type="range" min="0" max="100" value={person.photoY ?? 30} onChange={(event) => set("photoY", Number(event.target.value))} /></label>
+          <label><span>Crop zoom ({person.photoZoom})</span><input type="range" min="1" max="2" step="0.05" value={person.photoZoom ?? 1} onChange={(event) => set("photoZoom", Number(event.target.value))} /></label>
+          <label className="check"><input type="checkbox" checked={!!person.hidden} onChange={(event) => set("hidden", event.target.checked)} /> Hide from the site</label>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button type="button" onClick={onSave}>Save draft</button>
+            <button type="button" onClick={() => {
+              if (!window.confirm(`Delete ${person.name}? This removes them from the draft. Publish to remove them from the site.`)) return;
+              patch((next) => { next.people = next.people.filter((item) => item.id !== person.id); });
+              setId(people.find((item) => item.id !== person.id)?.id);
+            }}>Delete employee</button>
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function LinkedInEditor({ posts, onChange, media, onMedia }) {
+  const blank = { url: "", embedUrl: "", title: "", excerpt: "", author: "", date: "", image: "", imageAlt: "", hidden: false };
+  const [form, setForm] = useState(blank);
+  const [editing, setEditing] = useState("");
+  const [message, setMessage] = useState("");
+  function set(key, value) { setForm((current) => ({ ...current, [key]: value })); }
+  async function save(event) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      const saved = await api(editing ? `/api/admin/linkedin-posts/${editing}` : "/api/admin/linkedin-posts", {
+        method: editing ? "PUT" : "POST",
+        body: JSON.stringify(form),
+      });
+      onChange(await api("/api/admin/linkedin-posts"));
+      setEditing(saved.id);
+      setForm(saved);
+      setMessage("Saved. Posts go live as soon as they are saved, unless hidden.");
+    } catch (reason) {
+      setMessage(reason.message);
+    }
+  }
+  return (
+    <div className="admin-main">
+      <div className="panel stack">
+        {posts.map((item) => (
+          <button key={item.id} type="button" aria-pressed={item.id === editing} onClick={() => { setEditing(item.id); setForm({ ...blank, ...item }); setMessage(""); }}>
+            {item.hidden ? "Hidden: " : ""}{item.date ? `${item.date} · ` : ""}{item.title || item.url}
+          </button>
+        ))}
+        <button type="button" className="primary" onClick={() => { setEditing(""); setForm(blank); setMessage(""); }}>Add LinkedIn post</button>
+      </div>
+      <form className="panel stack" onSubmit={save}>
+        <h2>{editing ? "Edit LinkedIn post" : "New LinkedIn post"}</h2>
+        <label><span>Post URL (required)</span><input type="url" required value={form.url} onChange={(event) => set("url", event.target.value)} placeholder="https://www.linkedin.com/posts/…" /></label>
+        <Field label="Title (optional)" value={form.title} onChange={(value) => set("title", value)} />
+        <Field label="Excerpt (optional)" value={form.excerpt} onChange={(value) => set("excerpt", value)} area />
+        <Field label="Embed URL (optional, from LinkedIn's Embed this post: https://www.linkedin.com/embed/…)" value={form.embedUrl} onChange={(value) => set("embedUrl", value)} />
+        <Field label="Author" value={form.author} onChange={(value) => set("author", value)} />
+        <label><span>Date</span><input type="date" value={form.date || ""} onChange={(event) => set("date", event.target.value)} /></label>
+        <Field label="Image address (optional)" value={form.image} onChange={(value) => set("image", value)} />
+        <ImageUpload label="Or upload an image" alt={form.title} onMedia={onMedia} onUploaded={(url) => set("image", url)} />
+        <MediaSelect media={media} onPick={(url) => set("image", url)} />
+        <Field label="Image description" value={form.imageAlt} onChange={(value) => set("imageAlt", value)} />
+        <label className="check"><input type="checkbox" checked={!!form.hidden} onChange={(event) => set("hidden", event.target.checked)} /> Hide from the site</label>
+        {message && <p className="note" role="status">{message}</p>}
+        <button className="primary" type="submit">{editing ? "Save post" : "Add post"}</button>
+        {editing && <button type="button" onClick={async () => {
+          if (!window.confirm("Delete this LinkedIn post?")) return;
+          await api(`/api/admin/linkedin-posts/${editing}`, { method: "DELETE" });
+          onChange(await api("/api/admin/linkedin-posts"));
+          setEditing("");
+          setForm(blank);
+          setMessage("Deleted.");
+        }}>Delete post</button>}
+      </form>
     </div>
   );
 }

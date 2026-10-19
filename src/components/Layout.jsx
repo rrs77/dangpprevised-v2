@@ -83,7 +83,9 @@ export default function Layout({ children }) {
           </div>
           <div>
             <p className="eyebrow">Visit</p>
-            {nav.map((item) => <div key={item.id}><Link to={hrefFor(item.href)}>{item.label}</Link></div>)}
+            <ul className="footer-links">
+              {nav.map((item) => <li key={item.id}><Link to={hrefFor(item.href)}>{item.label}</Link></li>)}
+            </ul>
           </div>
           <div>
             <p className="eyebrow">Contact</p>
