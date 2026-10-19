@@ -11,11 +11,12 @@ Open the admin by adding **/admin** to the website address, for example `https:/
 ## 1. Signing in
 
 1. Go to the **/admin** address.
-2. Type the admin password and press **Sign in**. Press **Show** if you want to check what you've typed.
-3. **If you have your own editor login:** press **Sign in as an editor** under the button, then type your email address and password. (Press **Sign in with the admin password** to go back.)
-4. You stay signed in for the day. Press **Sign out** (top right) when you finish, especially on a shared computer.
+2. **Email:** leave this empty if you use the main admin password. Only fill it in if you have your own editor account.
+3. **Password:** type your password. Press **Show** if you want to check what you've typed.
+4. Press **Sign in**.
+5. You stay signed in for the day. Press **Sign out** (top right) when you finish, especially on a shared computer.
 
-If you see "That password isn't right", check Caps Lock and try again. **← Back to site** takes you to the website without signing in.
+Your login details are the same as before. If you see "That password isn't right", check Caps Lock and try again. If you have an editor account, check your email address too. **← Back to site** takes you to the website without signing in.
 
 ---
 

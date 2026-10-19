@@ -78,7 +78,7 @@ It checks public pages and the API, signs in, edits and publishes a draft (then 
 
 ## Notes for the technical team (from the editor side)
 
-- Sign-in page: password only by default, which matches `ADMIN_PASSWORD` (superuser). Editor accounts use the **Sign in as an editor** link, which reveals an email field; the server checks the email and password together. The `/api/admin/login` endpoint is unchanged. Sessions last 24 hours.
+- Sign-in page: an optional email field ("only if you have an editor account") above the password. Blank email + `ADMIN_PASSWORD` = superuser; email + password = editor account. The `/api/admin/login` endpoint and stored credentials are unchanged. Sessions last 24 hours.
 - Insights articles, LinkedIn posts, media uploads and editor accounts are saved live; everything else is draft until Publish.
 - The last 40 published revisions are kept; Restore (superuser only) makes that version live and replaces the draft.
 - Uploads: JPG, PNG, WebP or GIF, up to 8 MB.

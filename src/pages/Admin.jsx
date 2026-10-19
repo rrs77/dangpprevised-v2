@@ -60,11 +60,11 @@ export default function Admin() {
 
   useEffect(() => { load().catch((reason) => setError(reason.message)); }, []);
 
-  async function login(event, asEditor) {
+  async function login(event) {
     event.preventDefault();
     setError("");
     try {
-      await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password, email: asEditor ? email.trim() : "" }) });
+      await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password, email: email.trim() }) });
       setPassword("");
       await load();
     } catch (reason) {
@@ -195,14 +195,12 @@ function moveSection(patch, slug, index, delta) {
   });
 }
 function LoginScreen({ password, setPassword, email, setEmail, error, setError, onSubmit }) {
-  const [asEditor, setAsEditor] = useState(false);
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const passwordRef = useRef(null);
-  const emailRef = useRef(null);
-  useEffect(() => { (asEditor ? emailRef : passwordRef).current?.focus(); }, [asEditor]);
+  useEffect(() => { passwordRef.current?.focus(); }, []);
   const message = error === "Invalid password"
-    ? (asEditor ? "That email and password don't match an editor account." : "That password isn't right. Please try again.")
+    ? (email.trim() ? "That email and password don't match. Check both and try again." : "That password isn't right. Please try again.")
     : error;
   return (
     <main className="login-page">
@@ -210,17 +208,17 @@ function LoginScreen({ password, setPassword, email, setEmail, error, setError, 
       <div className="login-shell">
         <a className="login-logo" href="/"><img src="/images/gpp-logo-white.png" alt="Global Place Partners" /></a>
         <form className="login-panel" noValidate onSubmit={async (event) => {
-          if (!password || (asEditor && !email.trim())) { event.preventDefault(); setError(asEditor ? "Enter your email and password." : "Enter the password."); return; }
-          setBusy(true); try { await onSubmit(event, asEditor); } finally { setBusy(false); } }}>
+          if (!password) { event.preventDefault(); setError("Enter the password."); return; }
+          setBusy(true);
+          try { await onSubmit(event); } finally { setBusy(false); }
+        }}>
           <p className="login-eyebrow">Website admin</p>
-          <h1>{asEditor ? "Editor sign in" : "Sign in"}</h1>
-          <p className="login-intro">{asEditor ? "Use the email and password you were given." : "Enter the admin password to edit the website."}</p>
+          <h1>Sign in</h1>
+          <p className="login-intro">Enter your password to edit the website.</p>
           {message && <p className="login-error" role="alert" id="login-error">{message}</p>}
-          {asEditor && (
-            <label className="login-field"><span>Email</span>
-              <input ref={emailRef} type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required aria-invalid={!!message} aria-describedby={message ? "login-error" : undefined} />
-            </label>
-          )}
+          <label className="login-field"><span>Email <em className="login-optional">(only if you have an editor account)</em></span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" aria-describedby={message ? "login-error" : undefined} />
+          </label>
           <label className="login-field"><span>Password</span>
             <span className="login-password">
               <input ref={passwordRef} type={show ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required aria-invalid={!!message} aria-describedby={message ? "login-error" : undefined} />
@@ -229,7 +227,6 @@ function LoginScreen({ password, setPassword, email, setEmail, error, setError, 
           </label>
           <button className="login-submit" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
           <div className="login-links">
-            <button type="button" className="login-link" onClick={() => { setAsEditor((value) => !value); setError(""); }}>{asEditor ? "Sign in with the admin password" : "Sign in as an editor"}</button>
             <a className="login-link" href="/">← Back to site</a>
           </div>
         </form>

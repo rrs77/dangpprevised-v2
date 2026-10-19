@@ -700,6 +700,7 @@ body.modal-open { overflow: hidden; }
 }
 .login-eyebrow { margin: 0; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--copper); }
 .login-panel h1 { margin: -0.4rem 0 0; font-family: var(--font-heading); font-size: 2rem; line-height: 1.1; color: var(--green); }
+.login-optional { font-style: normal; font-weight: 400; color: var(--muted); }
 .login-intro { margin: -0.3rem 0 0.25rem; color: var(--muted); }
 .login-field { display: grid; gap: 0.4rem; font-weight: 600; font-size: 0.95rem; }
 .login-field input {
