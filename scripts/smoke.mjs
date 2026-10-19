@@ -121,6 +121,9 @@ assert((await request("/api/admin/linkedin-posts", { headers: { cookie } })).jso
 await request(`/api/admin/linkedin-posts/${post.id}`, { method: "DELETE", headers: { cookie } });
 assert(!(await request("/api/admin/linkedin-posts", { headers: { cookie } })).json.some((item) => item.id === post.id), "post not deleted");
 
+for (const old of (await request("/api/admin/users", { headers: { cookie } })).json.filter((item) => item.email === "editor@example.com")) {
+  await request(`/api/admin/users/${old.id}`, { method: "DELETE", headers: { cookie } });
+}
 const editor = await request("/api/admin/users", { method: "POST", ...auth, body: JSON.stringify({ name: "Editor", email: "editor@example.com", password: "editor-pass-1", role: "editor" }) });
 assert(editor.json.success, "create editor failed");
 const editorLogin = await request("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "editor@example.com", password: "editor-pass-1" }) });
@@ -128,6 +131,8 @@ assert(editorLogin.json.role === "editor", "editor login failed");
 const editorCookie = editorLogin.headers.get("set-cookie").split(";")[0];
 const denied = await request("/api/admin/users", { headers: { cookie: editorCookie } });
 assert(denied.status === 403, "editor should not manage users");
+const smokeEditor = (await request("/api/admin/users", { headers: { cookie } })).json.find((item) => item.email === "editor@example.com");
+if (smokeEditor) await request(`/api/admin/users/${smokeEditor.id}`, { method: "DELETE", headers: { cookie } });
 
 const article = await request("/api/admin/insights", { method: "POST", ...auth, body: JSON.stringify({ title: "Draft only note", summary: "Not public", status: "draft", url: "https://example.com/not-real" }) });
 assert(article.json?.id, "article create failed");
@@ -143,18 +148,49 @@ assert(revisions.json.length > 0, "no revisions");
 const restored = await request("/api/admin/rollback", { method: "POST", ...auth, body: JSON.stringify({ id: revisions.json[0].id }) });
 assert(restored.status === 200 || restored.json?.error, JSON.stringify(restored.json));
 
-const sent = await request("/api/contact", {
+// Contact form: invisible spam protection.
+const fakeIp = `203.0.113.${Math.floor(Math.random() * 250) + 1}, 10.0.0.${Math.floor(Math.random() * 250) + 1}`;
+const formMarker = `smoke-${Date.now()}`;
+const enquiry = { name: "Ada Tester", email: "ada@example.com", organisation: "Test Place", project: "Checking the form.", consent: true, website: "" };
+const submit = (extra, ip = fakeIp) => request("/api/contact", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ name: "Ada Tester", email: "ada@example.com", organisation: "Test Place", project: "Checking the form.", consent: true, captchaToken: "test-token", website: "" }),
+  headers: { "Content-Type": "application/json", "X-Forwarded-For": ip },
+  body: JSON.stringify({ ...enquiry, ...extra }),
 });
-assert(sent.json?.success, `contact failed ${sent.status} ${sent.text}`);
-const honeypot = await request("/api/contact", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ name: "Bot", email: "bot@example.com", organisation: "X", project: "spam", consent: true, captchaToken: "test-token", website: "http://spam.test" }),
-});
-assert(honeypot.json?.success, "honeypot should pretend success");
+const stored = async (tag) => (await request("/api/admin/submissions", { headers: { cookie } })).json.filter((item) => item.message === `${formMarker}-${tag}`).length;
+const freshToken = async () => (await request("/api/form-token")).json.token;
+assert(!(await request("/api/config")).text.includes("turnstile"), "turnstile config still served");
+
+const fast = await submit({ formToken: await freshToken(), project: `${formMarker}-fast` });
+assert(fast.status === 200 && fast.json?.success, `too-fast should pretend success ${fast.status}`);
+assert((await stored("fast")) === 0, "too-fast submission was stored");
+
+const missing = await submit({});
+assert(missing.status === 400, `missing token should be rejected ${missing.status}`);
+const forged = await submit({ formToken: `${Date.now() - 60000}.abcd.${"0".repeat(64)}` });
+assert(forged.status === 400, `forged token should be rejected ${forged.status}`);
+
+const token = await freshToken();
+await new Promise((resolve) => setTimeout(resolve, 3200));
+const honeypot = await submit({ formToken: token, name: "Bot", website: "http://spam.test", project: `${formMarker}-bot` });
+assert(honeypot.status === 200 && honeypot.json?.success, "honeypot should pretend success");
+assert((await stored("bot")) === 0, "honeypot submission was stored");
+
+const invalid = await submit({ formToken: token, email: "not-an-email" });
+assert(invalid.status === 400 && invalid.json?.details?.length, "validation still applies");
+
+const sent = await submit({ formToken: token, project: `${formMarker}-ok` });
+assert(sent.status === 200 && sent.json?.success, `contact failed ${sent.status} ${sent.text}`);
+assert((await stored("ok")) === 1, "normal submission was not stored");
+
+for (let n = 2; n <= 5; n += 1) {
+  const ok = await submit({ formToken: token });
+  assert(ok.status === 200, `submission ${n} should pass the rate limit ${ok.status}`);
+}
+const limited = await submit({ formToken: token });
+assert(limited.status === 429, `6th submission in an hour should be rate limited, got ${limited.status}`);
+const otherIp = await submit({ formToken: token }, `198.51.100.${Math.floor(Math.random() * 250) + 1}`);
+assert(otherIp.status === 200, "rate limit should be per IP");
 
 if (process.env.CHECK_PAGES === "1") {
   for (const path of ["/", "/about", "/our-work", "/growth-model", "/people", "/insights", "/contact", "/privacy", "/cookies"]) {

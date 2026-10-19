@@ -18,15 +18,21 @@
 | `DATABASE_SSL` | No | `true`/`false` to force SSL on/off. SSL is used automatically on Vercel or with `sslmode=require`; `sslmode=disable` turns it off. |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | No | Send contact-form emails via Resend. Without them, enquiries are only stored (history tab). |
 | `CONTACT_TO_EMAILS` | No | Comma-separated recipients; overrides the recipient set in brand. |
-| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Production | Cloudflare Turnstile spam check on the form. Defaults are Cloudflare's always-pass test keys, which provide no protection. |
 
-Admin passwords for editors are stored hashed (scrypt). Session cookies are HTTP-only, `SameSite=Lax`, `Secure` in production, and expire after 24 hours. The contact form is limited to 5 submissions per hour per IP.
+Admin passwords for editors are stored hashed (scrypt). Session cookies are HTTP-only, `SameSite=Lax`, `Secure` in production, and expire after 24 hours. 
+### Contact form spam protection
+
+No third-party service or extra configuration is needed. The contact form (the site's only public form) uses three invisible checks in `server/app.js`:
+
+- **Honeypot:** a hidden `website` field (visually hidden, `aria-hidden`, `tabindex=-1`, `autocomplete=off`). If it is filled in, the server replies "success" but stores and sends nothing.
+- **Minimum fill time:** the form fetches a token from `GET /api/form-token`, signed with `SESSION_SECRET` (HMAC-SHA256) and carrying the time it was issued. A submission less than 3 seconds after that is answered "success" and dropped. Missing, tampered or over-24-hour-old tokens get a 400 asking the visitor to reload the page.
+- **Rate limit:** 5 accepted submissions per IP per hour. With `DATABASE_URL` the count lives in the Postgres table `form_hits`, so it holds across Vercel serverless instances. IPs are stored as a SHA-256 hash and rows older than 24 hours are removed. Without a database the count is kept in memory per process. On Vercel the client IP comes from `x-forwarded-for`.
 
 ## Deploying on Vercel
 
 1. Import the GitHub repo `rrs77/dangpprevised-v2` into Vercel. Build settings come from `vercel.json` (`npm run build`, output `dist`, `/api/*` routed to the Express app, everything else to the SPA).
 2. Create a Postgres database (e.g. Vercel Marketplace → Neon, or any hosted Postgres) and copy its connection string.
-3. In Project → Settings → Environment Variables add `SESSION_SECRET`, `ADMIN_PASSWORD`, `DATABASE_URL` and, as needed, the Resend and Turnstile variables. Redeploy.
+3. In Project → Settings → Environment Variables add `SESSION_SECRET`, `ADMIN_PASSWORD`, `DATABASE_URL` and, as needed, the Resend variables. Redeploy.
 4. Visit `/admin`, sign in and publish once to confirm saving works.
 
 ### Postgres
@@ -67,7 +73,7 @@ With the server running (e.g. `npm start` as above), in another terminal:
 ADMIN_PASSWORD=dev npm run smoke          # BASE defaults to http://127.0.0.1:3001
 ```
 
-It checks public pages and the API, signs in, edits and publishes a draft (then restores the original text), adds a person with a photo, reorders and deletes them, creates/edits/hides/deletes a LinkedIn post, and tests the contact form. Run it against a local or staging copy, not the live site: it publishes changes while it runs.
+It checks public pages and the API, signs in, edits and publishes a draft (then restores the original text), adds a person with a photo, reorders and deletes them, creates/edits/hides/deletes a LinkedIn post, and tests the contact form: a normal enquiry, the honeypot, a too-fast submission, a missing token and the rate limit (it sends a made-up `X-Forwarded-For` IP each run so repeated runs don't hit the limit). Run it against a local or staging copy, not the live site: it publishes changes while it runs.
 
 
 ## Notes for the technical team (from the editor side)

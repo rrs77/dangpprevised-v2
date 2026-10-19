@@ -356,7 +356,6 @@ function ContactForm() {
   const { content } = useSite();
   const form = content.settings.form;
   const email = content.settings.contact?.email;
-  const widget = useRef(null);
   const [token, setToken] = useState("");
   const [errors, setErrors] = useState([]);
   const [done, setDone] = useState(false);
@@ -364,24 +363,11 @@ function ContactForm() {
 
   useEffect(() => {
     let cancelled = false;
-    let widgetId;
-    let timer;
-    fetch("/api/config").then((response) => response.json()).then((config) => {
-      const mount = () => {
-        if (cancelled || !widget.current || !window.turnstile) return;
-        widgetId = window.turnstile.render(widget.current, {
-          sitekey: config.turnstileSiteKey,
-          callback: (value) => setToken(value),
-        });
-      };
-      if (window.turnstile) mount();
-      else timer = setInterval(() => { if (window.turnstile) { clearInterval(timer); mount(); } }, 200);
-    });
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
-    };
+    fetch("/api/form-token", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => { if (!cancelled) setToken(data.token || ""); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   async function onSubmit(event) {
@@ -393,7 +379,6 @@ function ContactForm() {
     if (!String(data.get("organisation") || "").trim()) nextErrors.push("Enter your organisation.");
     if (!String(data.get("project") || "").trim()) nextErrors.push("Enter a message.");
     if (!data.get("consent")) nextErrors.push("Consent is needed so we can reply.");
-    if (!token) nextErrors.push("Complete the verification check.");
     setErrors(nextErrors);
     if (nextErrors.length) return;
     setPending(true);
@@ -407,7 +392,7 @@ function ContactForm() {
         project: data.get("project"),
         website: data.get("website"),
         consent: true,
-        captchaToken: token,
+        formToken: token,
       }),
     });
     const body = await response.json().catch(() => ({}));
@@ -441,10 +426,11 @@ function ContactForm() {
             <label><span>{form.organisationLabel}</span><input name="organisation" autoComplete="organization" required /></label>
             <label><span>{form.emailLabel}</span><input name="email" type="email" autoComplete="email" required /></label>
             <label><span>{form.messageLabel}</span><textarea name="project" required /></label>
-            <label className="hp">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
+            <div className="hp" aria-hidden="true">
+              <label>Leave this field empty<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label>
+            </div>
             <label className="check"><input name="consent" type="checkbox" /> <span>{form.consentLabel}</span></label>
             <p><Link to="/privacy">Read the Privacy Policy</Link></p>
-            <div ref={widget} className="turnstile" />
             <button className="primary" type="submit" disabled={pending}>{pending ? "Sending…" : form.submitLabel}</button>
           </form>
         )}

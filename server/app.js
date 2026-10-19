@@ -4,7 +4,8 @@ import cors from "cors";
 import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
-import { cookieName, cookieOptions, hashPassword, readToken, safeEqual, signToken, verifyPassword } from "./auth.js";
+import crypto from "node:crypto";
+import { cookieName, cookieOptions, formTokenAge, hashPassword, readToken, safeEqual, signFormToken, signToken, verifyPassword } from "./auth.js";
 import {
   addMedia,
   addSubmission,
@@ -20,6 +21,7 @@ import {
   getDraft,
   getPublished,
   getRecipient,
+  hitRateLimit,
   initStore,
   storageMode,
   listInsights,
@@ -48,7 +50,6 @@ const upload = multer({
   },
 });
 
-const hits = new Map();
 let ready;
 
 export function start() {
@@ -74,28 +75,13 @@ function requireSuper(req, res, next) {
   next();
 }
 
-function rateLimit(ip) {
-  const now = Date.now();
-  const windowMs = 60 * 60 * 1000;
-  const recent = (hits.get(ip) || []).filter((time) => now - time < windowMs);
-  if (recent.length >= 5) {
-    hits.set(ip, recent);
-    return false;
-  }
-  recent.push(now);
-  hits.set(ip, recent);
-  return true;
-}
+const FORM_MIN_MS = 3000;
+const FORM_MAX_MS = 24 * 60 * 60 * 1000;
+const FORM_LIMIT = 5;
+const FORM_WINDOW_MS = 60 * 60 * 1000;
 
-async function verifyTurnstile(token, ip) {
-  const secret = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA";
-  const body = new URLSearchParams();
-  body.set("secret", secret);
-  body.set("response", token);
-  if (ip && ip !== "unknown") body.set("remoteip", ip);
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body });
-  const data = await response.json();
-  return Boolean(data?.success);
+function rateKey(form, ip) {
+  return `${form}:${crypto.createHash("sha256").update(String(ip)).digest("hex").slice(0, 32)}`;
 }
 
 function escapeHtml(value) {
@@ -124,10 +110,9 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, storage: storageMode() });
 });
 
-app.get("/api/config", (_req, res) => {
-  res.json({
-    turnstileSiteKey: process.env.TURNSTILE_SITE_KEY || process.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA",
-  });
+app.get("/api/form-token", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ token: signFormToken() });
 });
 
 app.get("/api/content", async (_req, res, next) => {
@@ -410,22 +395,25 @@ app.get("/api/admin/submissions", requireUser, requireSuper, async (_req, res, n
 
 app.post("/api/contact", async (req, res, next) => {
   try {
-    const { name, email, organisation, project, website, captchaToken, consent } = req.body || {};
+    const { name, email, organisation, project, website, formToken, consent } = req.body || {};
+    // Honeypot: real visitors never see this field. Pretend it worked and drop it.
     if (typeof website === "string" && website.trim() !== "") return res.json({ success: true });
+    const age = formTokenAge(formToken);
+    if (age === null || age > FORM_MAX_MS) {
+      return res.status(400).json({ error: "This form has expired. Please reload the page and try again." });
+    }
+    // Filled in faster than a person could: pretend it worked and drop it.
+    if (age < FORM_MIN_MS) return res.json({ success: true });
     const errors = [];
     if (typeof name !== "string" || !name.trim()) errors.push("Name is required");
     if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.push("A valid email is required");
     if (typeof organisation !== "string" || !organisation.trim()) errors.push("Organisation is required");
     if (typeof project !== "string" || !project.trim()) errors.push("A message is required");
     if (consent !== true) errors.push("Consent is required");
-    if (typeof captchaToken !== "string" || !captchaToken.trim()) errors.push("Verification is required");
     if (errors.length) return res.status(400).json({ error: "Invalid submission", details: errors });
 
     const ip = clientIp(req);
-    if (!(await verifyTurnstile(captchaToken, ip))) {
-      return res.status(400).json({ error: "Verification failed. Please try again." });
-    }
-    if (!rateLimit(ip)) return res.status(429).json({ error: "Too many submissions. Please try again later." });
+    if (!(await hitRateLimit(rateKey("contact", ip), FORM_LIMIT, FORM_WINDOW_MS))) return res.status(429).json({ error: "Too many submissions. Please try again later." });
 
     const published = await getPublished();
     const recipients = getRecipient(published);

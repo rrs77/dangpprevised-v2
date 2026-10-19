@@ -67,3 +67,24 @@ export function safeEqual(a, b) {
   if (left.length !== right.length) return false;
   return crypto.timingSafeEqual(left, right);
 }
+
+// Signed "form opened at" token so the server can check how long a form was open.
+export function signFormToken() {
+  const body = `${Date.now()}.${crypto.randomBytes(8).toString("hex")}`;
+  const signature = crypto.createHmac("sha256", secret()).update(`form:${body}`).digest("hex");
+  return `${body}.${signature}`;
+}
+
+// Returns the age of a valid token in milliseconds, or null if it is invalid.
+export function formTokenAge(token) {
+  if (typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [issued, nonce, signature] = parts;
+  const expected = crypto.createHmac("sha256", secret()).update(`form:${issued}.${nonce}`).digest("hex");
+  const a = Buffer.from(signature, "hex");
+  const b = Buffer.from(expected, "hex");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  const age = Date.now() - Number(issued);
+  return Number.isFinite(age) && age >= 0 ? age : null;
+}

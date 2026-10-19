@@ -116,6 +116,11 @@ async function migrate(client) {
       bytes bytea,
       created_at timestamptz not null default now()
     );
+    create table if not exists form_hits (
+      key text not null,
+      at timestamptz not null default now()
+    );
+    create index if not exists form_hits_key_at on form_hits (key, at);
     create table if not exists site_content (
       key text primary key,
       value text not null default '',
@@ -552,4 +557,28 @@ export function getRecipient(doc) {
   if (fromEnv.length) return fromEnv;
   const stored = doc?.secrets?.recipientEmail || doc?.settings?.contact?.email;
   return [stored || "enquiries@globalplacepartners.com"];
+}
+
+const memoryHits = new Map();
+
+// Counts a submission against a fixed window. Postgres is shared by every
+// serverless instance; without it the count is per process (fine locally).
+export async function hitRateLimit(key, limit, windowMs) {
+  if (pool) {
+    const since = new Date(Date.now() - windowMs);
+    await pool.query("delete from form_hits where at < $1", [new Date(Date.now() - 24 * 60 * 60 * 1000)]);
+    const { rows } = await pool.query("select count(*)::int as n from form_hits where key = $1 and at >= $2", [key, since]);
+    if (rows[0].n >= limit) return false;
+    await pool.query("insert into form_hits (key) values ($1)", [key]);
+    return true;
+  }
+  const now = Date.now();
+  const recent = (memoryHits.get(key) || []).filter((time) => now - time < windowMs);
+  if (recent.length >= limit) {
+    memoryHits.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  memoryHits.set(key, recent);
+  return true;
 }
