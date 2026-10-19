@@ -49,7 +49,7 @@ export function Signature() {
   const { content } = useSite();
   const email = content.settings.contact?.email || "enquiries@globalplacepartners.com";
   const origin = content.settings.canonicalBase || "https://www.globalplacepartners.com";
-  const html = `<table cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif"><tr><td style="font-size:16px;font-weight:700;color:#14362f">Dan Storer</td></tr><tr><td style="color:#2F7F73;font-weight:700">Founding Partner, Global Place Partners</td></tr><tr><td style="padding-top:8px"><a href="mailto:${email}" style="color:#2F7F73">${email}</a></td></tr><tr><td><a href="${origin}" style="color:#2F7F73">globalplacepartners.com</a></td></tr><tr><td style="padding-top:8px"><img src="${origin}/images/gpp-logo.png" alt="Global Place Partners" width="180" /></td></tr></table>`;
+  const html = `<table cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif"><tr><td style="font-size:16px;font-weight:700;color:#14362f">Dan Storer</td></tr><tr><td style="color:#2F7F73;font-weight:700">Founding Partner, Global Place Partners</td></tr><tr><td style="padding-top:8px"><a href="mailto:${email}" style="color:#2F7F73">${email}</a></td></tr><tr><td><a href="${origin}" style="color:#2F7F73">globalplacepartners.com</a></td></tr><tr><td style="padding-top:8px"><img src="${origin}/images/gpp-logo-green.png" alt="Global Place Partners" width="180" /></td></tr></table>`;
   return (
     <section className="band">
       <div className="wrap narrow">

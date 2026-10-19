@@ -37,8 +37,8 @@ export default function Layout({ children }) {
       --paper: ${colors.paper || "#f6f1e8"};
       --cream: ${colors.cream || "#ebe3d6"};
       --deep: ${colors.deep || "#0c1f1c"};
-      --font-heading: "${settings.fonts?.heading || "Outfit"}", sans-serif;
-      --font-body: "${settings.fonts?.body || "Source Sans 3"}", sans-serif;
+      --font-heading: "${settings.fonts?.heading || "Manrope"}", sans-serif;
+      --font-body: "${settings.fonts?.body || "DM Sans"}", sans-serif;
     }
   `;
 

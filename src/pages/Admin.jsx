@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 const TYPES = ["hero", "text", "stats", "quote", "linkedin", "modes", "diagram", "diagnostic", "people", "insights", "contact", "cta"];
 const BACKGROUNDS = ["paper", "cream", "white", "sage", "deep", "green", "pine", "teal"];
-const FONTS = ["Outfit", "Source Sans 3", "Fraunces", "Libre Franklin", "Manrope"];
+const FONTS = ["Manrope", "DM Sans", "Outfit", "Source Sans 3", "Fraunces", "Libre Franklin"];
 
 async function api(url, options = {}) {
   const headers = { ...(options.headers || {}) };
@@ -204,9 +204,9 @@ function LoginScreen({ password, setPassword, email, setEmail, error, setError, 
     : error;
   return (
     <main className="login-page">
-      <img className="login-art" src="/images/constellation.png" alt="" aria-hidden="true" />
+      <img className="login-art" src="/images/constellation.webp" alt="" aria-hidden="true" />
       <div className="login-shell">
-        <a className="login-logo" href="/"><img src="/images/gpp-logo-white.png" alt="Global Place Partners" /></a>
+        <a className="login-logo" href="/"><img src="/images/gpp-logo-cream.png" alt="Global Place Partners" /></a>
         <form className="login-panel" noValidate onSubmit={async (event) => {
           if (!password) { event.preventDefault(); setError("Enter the password."); return; }
           setBusy(true);
@@ -280,12 +280,18 @@ function SectionEditor({ section, onChange, onDuplicate, onDelete, media }) {
       <Field label="Heading" value={section.heading} onChange={(value) => set("heading", value)} area />
       <Field label="Supporting line" value={section.subheading} onChange={(value) => set("subheading", value)} />
       <Field label="Body" value={section.body} onChange={(value) => set("body", value)} area />
+      {section.type === "text" && (
+        <>
+          <Field label="Second column (optional: shows the body in two columns)" value={section.body2 || ""} onChange={(value) => set("body2", value)} area />
+          <label className="check"><input type="checkbox" checked={!!section.emphasis} onChange={(event) => set("emphasis", event.target.checked)} /> Make the second column larger and bold</label>
+        </>
+      )}
       {section.type === "linkedin" && (
         <label><span>Number of posts to show (0 = all)</span><input type="number" min="0" value={section.limit ?? 0} onChange={(event) => set("limit", Number(event.target.value) || 0)} /></label>
       )}
       {section.type === "diagnostic" && (
         <>
-          <Field label="Note under the questions" value={section.note || ""} onChange={(value) => set("note", value)} area />
+          <Field label="Text under the questions" value={section.note || ""} onChange={(value) => set("note", value)} area />
           <Field label="Result line" value={section.result || ""} onChange={(value) => set("result", value)} area />
         </>
       )}
@@ -296,19 +302,24 @@ function SectionEditor({ section, onChange, onDuplicate, onDelete, media }) {
       <Field label="Link address" value={section.linkHref} onChange={(value) => set("linkHref", value)} />
       <Field label="Second link label" value={section.link2Label} onChange={(value) => set("link2Label", value)} />
       <Field label="Second link address" value={section.link2Href} onChange={(value) => set("link2Href", value)} />
+      <Field label="Third link label" value={section.link3Label || ""} onChange={(value) => set("link3Label", value)} />
+      <Field label="Third link address" value={section.link3Href || ""} onChange={(value) => set("link3Href", value)} />
       <label><span>Background</span><select value={section.background} onChange={(event) => set("background", event.target.value)}>{BACKGROUNDS.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label><span>Spacing</span><select value={section.spacing} onChange={(event) => set("spacing", event.target.value)}><option>compact</option><option>normal</option><option>generous</option></select></label>
       <label><span>Layout</span><select value={section.layout} onChange={(event) => set("layout", event.target.value)}><option>stack</option><option>split</option><option>split-reverse</option></select></label>
       <label><span>First link style</span><select value={section.linkStyle || "link"} onChange={(event) => set("linkStyle", event.target.value === "link" ? "" : event.target.value)}><option value="link">link</option><option value="button">button</option></select></label>
       {section.type === "text" && (
         <>
-          <label><span>Items shown as</span><select value={section.display || "list"} onChange={(event) => set("display", event.target.value === "list" ? "" : event.target.value)}><option value="list">list</option><option value="tiles">tiles</option></select></label>
+          <label><span>Style</span><select value={section.display || "list"} onChange={(event) => set("display", event.target.value === "list" ? "" : event.target.value)}><option value="list">standard (items as a list)</option><option value="tiles">items as tiles</option><option value="service">service: large heading left, text right</option><option value="ruled">ruled: text right with a line</option></select></label>
           <label className="check"><input type="checkbox" checked={!!section.showPortraits} onChange={(event) => set("showPortraits", event.target.checked)} /> Show a row of team portraits</label>
         </>
       )}
       <label className="check"><input type="checkbox" checked={!!section.hidden} onChange={(event) => set("hidden", event.target.checked)} /> Hide section</label>
-      {["modes", "diagram", "diagnostic", "text", "stats"].includes(section.type) && (
-        <ItemEditor items={section.items || []} onChange={(items) => set("items", items)} diagram={section.type === "diagram"} labelled={section.type === "diagnostic"} />
+      {["modes", "diagram", "diagnostic", "text", "stats", "contact"].includes(section.type) && (
+        <>
+          {section.type === "contact" && <p className="note">Contact people: Title = name, Label = role, Text = email address.</p>}
+          <ItemEditor items={section.items || []} onChange={(items) => set("items", items)} diagram={section.type === "diagram"} labelled={section.type === "diagnostic" || section.type === "contact"} />
+        </>
       )}
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <button type="button" onClick={onDuplicate}>Duplicate section</button>

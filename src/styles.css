@@ -12,8 +12,8 @@
   --pine: #102f2a;
   --sage: #dfe7dc;
   --teal-deep: #064b4a;
-  --font-heading: "Outfit", sans-serif;
-  --font-body: "Source Sans 3", sans-serif;
+  --font-heading: "Manrope", sans-serif;
+  --font-body: "DM Sans", sans-serif;
   color-scheme: light;
 }
 
@@ -327,40 +327,19 @@ h3 { font-size: clamp(1.6rem, 2vw, 2rem); }
   padding: 0.2rem 0 0.1rem;
 }
 
-/* Portrait treatment: uniform square crop, toned to one warm-neutral palette so mixed backgrounds read as one set.
-   Hover or keyboard focus on a card shows the original colour. */
+/* Portraits: supplied studio photos on matching light grey, shown in natural colour, uniform square crop. */
 .portrait {
   position: relative;
   overflow: hidden;
   aspect-ratio: 1 / 1;
-  background: #d9d1c3;
+  background: #e8e9e4;
 }
 .portrait img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  filter: grayscale(1) sepia(0.28) contrast(1.06) brightness(1.03);
-  transition: filter 0.35s ease;
 }
-.portrait::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(16, 47, 42, 0) 45%, rgba(16, 47, 42, 0.32) 100%), linear-gradient(135deg, rgba(184, 106, 61, 0.14), rgba(184, 106, 61, 0) 60%);
-}
-.portrait-framed::before {
-  content: "";
-  position: absolute;
-  inset: 0.55rem;
-  z-index: 1;
-  pointer-events: none;
-  border: 1px solid rgba(246, 241, 232, 0.55);
-}
-.person:hover .portrait img,
-.person:focus-within .portrait img { filter: none; }
-@media (prefers-reduced-motion: reduce) { .portrait img { transition: none; } }
 
 /* Home People teaser strip */
 .portrait-strip {
@@ -744,3 +723,98 @@ body.modal-open { overflow: hidden; }
   .login-links { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
 }
 @media (prefers-reduced-motion: reduce) { .login-submit { transition: none; } }
+
+/* ===== October 2026 brief: editorial refresh ===== */
+body { font-size: 1.0625rem; line-height: 1.72; }
+h1, h2, h3 { letter-spacing: -0.05em; line-height: 1.1; font-weight: 700; }
+h1 { font-size: clamp(2.6rem, 5.4vw, 4.25rem); font-weight: 800; letter-spacing: -0.06em; line-height: 1.07; }
+h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); text-wrap: balance; }
+.band-generous { padding: 5.5rem 0; }
+.support { font-family: var(--font-body); font-weight: 500; font-size: clamp(1.25rem, 1.8vw, 1.35rem); line-height: 1.45; max-width: 25rem; }
+.split { grid-template-columns: minmax(16rem, 1fr) minmax(16rem, 1.18fr); gap: 2rem 9%; }
+.text-link { font-weight: 700; font-size: 0.95rem; }
+
+/* Hero without artwork: heading left, copy right behind a copper rule (People, Our Work, Growth Model, Contact, Insights) */
+.band.hero-split-rule .split > div:last-child,
+#people-hero .split > div:last-child { border-left: 1px solid var(--copper); padding-left: 2rem; }
+.band-deep .muted, .band-green .muted { color: rgba(238, 244, 240, 0.84); }
+
+/* Two-column text with a ruled second column (About) */
+.text-columns h2 { max-width: 40rem; margin-bottom: 0.5rem; }
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem 8%; margin-top: 2rem; align-items: start; }
+.column-ruled { border-left: 1px solid var(--line); padding-left: 2.2rem; }
+.band-deep .column-ruled, .band-green .column-ruled, .band-pine .column-ruled { border-left-color: rgba(238, 244, 240, 0.25); }
+.prose.emphasis p { font-size: 1.25rem; line-height: 1.55; font-weight: 700; color: var(--ink); }
+.band-green .eyebrow, .band-deep .eyebrow { color: #e3a27e; }
+
+/* Service rows (Our Work) */
+.text-service { padding: 0 !important; }
+.text-service .columns { grid-template-columns: 43% 1fr; margin: 0; padding: 4.5rem 0; border-bottom: 1px solid #dfc7b7; }
+.text-service h2 { font-size: clamp(2.6rem, 5vw, 4.2rem); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+.service-subtitle { margin: 1rem 0 0; font-family: var(--font-heading); font-size: clamp(1.4rem, 2.2vw, 1.9rem); line-height: 1.18; letter-spacing: -0.03em; font-weight: 500; max-width: 22rem; }
+.text-ruled .columns { grid-template-columns: 43% 1fr; margin-top: 0; }
+.text-ruled .column-ruled { border-left-color: #dfc7b7; }
+
+/* Growth Model diagram: show the approved artwork as supplied */
+.diagram-scroll { background: transparent; border: 0; padding: 0; }
+.diagram-scroll img { max-width: 1130px; margin: 1.5rem auto 0; }
+.diagram-text { margin-top: 2rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+.diagram-text summary { cursor: pointer; color: var(--copper); font-weight: 700; font-size: 0.95rem; }
+.diagram-text[open] summary { margin-bottom: 1.5rem; }
+
+/* Growth Diagnostic: three numbered steps between copper rules */
+.diagnostic .questions { gap: 0; margin: 2.8rem 0 2.2rem; border-top: 1px solid #a46c4d; border-bottom: 1px solid #a46c4d; }
+.diagnostic .question { border-top: 0; padding: 1.75rem 1.9rem 1.75rem 0; }
+.diagnostic .question + .question { border-left: 1px solid #a46c4d; padding-left: 1.9rem; }
+.diagnostic .question-label { font-family: var(--font-heading); font-size: 2.4rem; font-weight: 500; letter-spacing: -0.02em; text-transform: none; color: #d5a17e; line-height: 1; }
+.diagnostic .question h3 { font-size: 1.4rem; font-weight: 600; margin: 0.9rem 0 0.7rem; }
+.diagnostic-note { max-width: 58rem; }
+.band-green.diagnostic h2, .band-green .question h3 { color: #fff; }
+.band-green .question p, .band-green .diagnostic-lead p, .band-green .diagnostic-note p { color: #e2e9e7; }
+
+/* People (mock-up): white cards, full square portraits, 2 across for Founding Partners, 3 across for Senior Associates */
+.people-list { display: block; }
+.people-list > .people-group { margin-bottom: 4rem; }
+.people-list > .people-group:last-of-type { margin-bottom: 0; }
+.group-label { border-bottom: 0; padding-bottom: 0; margin-bottom: 1.4rem; font-family: var(--font-body); font-size: 0.75rem; }
+.people-grid, .people-grid.three,
+.people-list > .people-group:not(.wide) .people-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem; align-items: stretch; }
+.people-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.person-content { padding: 1.6rem 1.6rem 1.7rem; }
+.role { font-size: 0.66rem; }
+.person h3 { font-size: 1.7rem; font-weight: 600; letter-spacing: -0.035em; margin: 0.45rem 0 0.45rem; }
+.people-grid.three .person h3 { font-size: 1.55rem; }
+.specialism { font-size: 0.84rem; margin-bottom: 1rem; }
+.person-summary { font-size: 0.92rem; line-height: 1.6; -webkit-line-clamp: 6; }
+.person-open { font-size: 0.85rem; }
+
+/* Contact (mock-up): help text and named contacts beside the form */
+.contact-grid { grid-template-columns: 1fr 1fr; gap: 3rem 7%; }
+.contact-info { padding-right: 7%; border-right: 1px solid #e3c4b0; margin-right: -7%; }
+.contact-info h2, .contact-form h2 { font-size: clamp(1.8rem, 2.8vw, 2.3rem); font-weight: 600; margin-bottom: 1.1rem; }
+.contact-details { margin-top: 2.5rem; padding-top: 2.2rem; border-top: 1px solid #e3c4b0; }
+.contact-details dl { margin: 0; display: grid; gap: 1.2rem; }
+.contact-details dt { font-weight: 600; }
+.contact-details dd { margin: 0; }
+.contact-email { color: var(--copper); text-decoration: underline; text-underline-offset: 3px; word-break: break-word; }
+
+@media (max-width: 1100px) {
+  .people-grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .split, .hero-grid { grid-template-columns: 1fr; gap: 1.5rem; }
+  .columns, .text-service .columns, .text-ruled .columns, .contact-grid { grid-template-columns: 1fr; gap: 1.25rem; }
+  .column-ruled { border-left: 0; padding-left: 0; }
+  .text-service .columns { padding: 3.2rem 0; }
+  .contact-info { border-right: 0; padding-right: 0; margin-right: 0; }
+  .diagnostic .questions { grid-template-columns: 1fr; }
+  .diagnostic .question, .diagnostic .question + .question { border-left: 0; padding: 1.5rem 0; }
+  .diagnostic .question + .question { border-top: 1px solid #a46c4d; }
+  .band.hero-split-rule .split > div:last-child, #people-hero .split > div:last-child { padding-left: 1.25rem; }
+  .band-generous { padding: 3.4rem 0; }
+}
+@media (max-width: 640px) {
+  .people-grid, .people-grid.three, .people-list > .people-group:not(.wide) .people-grid { grid-template-columns: 1fr; gap: 1.25rem; }
+  .people-grid .person { display: flex; }
+  .person-content { padding: 1.3rem 1.3rem 1.4rem; }
+}

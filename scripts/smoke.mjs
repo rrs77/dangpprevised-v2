@@ -20,7 +20,18 @@ const home = content.json.pages.find((page) => page.slug === "home");
 assert(home.sections[0].heading === "Regional growth.\nJoined up.", "hero heading");
 assert(home.sections[0].subheading === "Turning regional ambition into economic growth.", "supporting headline");
 const contact = content.json.pages.find((page) => page.slug === "contact");
-assert(contact.sections[0].heading === "Ambitious for your place? So are we.", "contact headline");
+assert(contact.sections[0].heading.replace(/\s+/g, " ") === "Ambitious for your place? So are we.", "contact headline");
+const team = content.json.people.filter((person) => !person.hidden);
+for (const name of ["Rob Valentine", "Dan Storer", "Sheona Southern", "Phil Nell", "Roger Mendonca", "James Turner", "Ben Odams", "Cliff Dennett", "Michelle Inkpen"]) {
+  const person = team.find((item) => item.name === name);
+  assert(person, `${name} missing from People`);
+  assert(["founding", "associate"].includes(person.group), `${name} should be a Founding Partner or Senior Associate`);
+  const photo = await request(person.photo);
+  assert(photo.status === 200 && (photo.headers.get("content-type") || "").startsWith("image/"), `${name} photo missing`);
+}
+for (const asset of ["/images/gpp-logo-cream.png", "/images/gpp-logo-green.png", "/images/constellation.webp", "/images/growth-model.png", "/favicon-32.png", "/opengraph.jpg"]) {
+  assert((await request(asset)).status === 200, `${asset} missing`);
+}
 for (const slug of ["about", "our-work", "growth-model", "people", "insights", "contact"]) {
   assert(content.json.pages.some((page) => page.slug === slug), `missing ${slug}`);
 }

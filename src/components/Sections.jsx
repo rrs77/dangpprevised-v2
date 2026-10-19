@@ -25,6 +25,7 @@ function Links({ section }) {
   const items = [
     [section.linkLabel, section.linkHref],
     [section.link2Label, section.link2Href],
+    [section.link3Label, section.link3Href],
   ].filter(([label, href]) => label && href);
   if (!items.length) return null;
   const hrefFor = (href) => {
@@ -352,7 +353,7 @@ function InsightsList({ insights }) {
   );
 }
 
-function ContactForm() {
+function ContactForm({ section = {} }) {
   const { content } = useSite();
   const form = content.settings.form;
   const email = content.settings.contact?.email;
@@ -406,14 +407,30 @@ function ContactForm() {
 
   return (
     <div className="contact-grid">
-      <div>
-        <h2>Contact details</h2>
-        <p className="muted">General enquiries</p>
-        <p><a className="text-link" href={`mailto:${email}`}>{email}</a></p>
+      <div className="contact-info">
+        {section.heading ? <h2>{section.heading}</h2> : null}
+        {section.body ? (
+          <div className="prose">
+            {paragraphs(section.body).map((paragraph) => <p key={paragraph.slice(0, 40)} className="muted">{paragraph}</p>)}
+          </div>
+        ) : null}
+        <div className="contact-details">
+          <h2>Contact details</h2>
+          <dl>
+            <div><dt>General enquiries</dt><dd><a className="contact-email" href={`mailto:${email}`}>{email}</a></dd></div>
+            {(section.items || []).filter((item) => item.title).map((item) => (
+              <div key={item.id}>
+                <dt>{item.title}</dt>
+                {item.label ? <dd className="muted">{item.label}</dd> : null}
+                {item.text ? <dd><a className="contact-email" href={`mailto:${item.text}`}>{item.text}</a></dd> : null}
+              </div>
+            ))}
+          </dl>
+        </div>
       </div>
-      <div>
+      <div className="contact-form">
         <h2>{form.heading}</h2>
-        <p className="muted">{form.intro}</p>
+        {form.intro ? <p className="muted">{form.intro}</p> : null}
         {done ? <p className="confirm" role="status">{form.confirmation}</p> : (
           <form onSubmit={onSubmit} noValidate>
             {errors.length > 0 && (
@@ -460,7 +477,7 @@ export default function Sections({ sections }) {
     if (section.type === "contact") {
       return (
         <section key={section.id} id={section.id} className={bandClass(section)}>
-          <div className="wrap"><ContactForm /></div>
+          <div className="wrap"><ContactForm section={section} /></div>
         </section>
       );
     }
@@ -476,19 +493,24 @@ export default function Sections({ sections }) {
                 <div className="diagram-scroll" tabIndex={0} aria-label="Growth Model diagram. Scroll sideways if the full diagram does not fit.">
                   <img src={section.image} alt={section.imageAlt || "Growth Model diagram"} />
                 </div>
-                <p className="diagram-help muted">On a phone, scroll the diagram sideways, or <a href={section.image}>open it full size</a>. The same drivers and capabilities are written out below.</p>
+                <p className="diagram-help muted">On a phone, scroll the diagram sideways or <a href={section.image}>open it full size</a>.</p>
               </>
             ) : null}
-            <div className="driver-grid">
-              {drivers.map((item) => (
-                <article key={item.id}><h3>{item.title}</h3><p>{item.text}</p></article>
-              ))}
-            </div>
-            <ul className="capability-list">
-              {capabilities.map((item) => (
-                <li key={item.id}><h3>{item.title}</h3><p>{item.text}</p></li>
-              ))}
-            </ul>
+            {drivers.length || capabilities.length ? (
+              <details className="diagram-text">
+                <summary>Read the Growth Model as text</summary>
+                <div className="driver-grid">
+                  {drivers.map((item) => (
+                    <article key={item.id}><h3>{item.title}</h3><p>{item.text}</p></article>
+                  ))}
+                </div>
+                <ul className="capability-list">
+                  {capabilities.map((item) => (
+                    <li key={item.id}><h3>{item.title}</h3><p>{item.text}</p></li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </div>
         </section>
       );
@@ -584,7 +606,11 @@ export default function Sections({ sections }) {
                 </article>
               ))}
             </div>
-            {section.note ? <p className="diagnostic-note muted">{section.note}</p> : null}
+            {section.note ? (
+              <div className="prose diagnostic-note">
+                {paragraphs(section.note).map((paragraph) => <p key={paragraph.slice(0, 40)} className="muted">{paragraph}</p>)}
+              </div>
+            ) : null}
             {section.result || section.linkLabel ? (
               <div className="diagnostic-result">
                 {section.result ? <p className="muted">{renderResult(section.result)}</p> : <span />}
@@ -595,12 +621,55 @@ export default function Sections({ sections }) {
         </section>
       );
     }
+    if (section.type === "text" && (section.body2 || section.display === "service" || section.display === "ruled")) {
+      const mode = section.display === "service" ? "service" : section.display === "ruled" ? "ruled" : "columns";
+      const prose = (text, extra = "") => (
+        <div className={`prose${extra}`}>
+          {paragraphs(text).map((paragraph) => <p key={paragraph.slice(0, 48)} className="muted">{paragraph}</p>)}
+        </div>
+      );
+      return (
+        <section key={section.id} id={section.id} className={`${bandClass(section)} text-${mode}`}>
+          <div className="wrap">
+            {mode === "columns" ? (
+              <>
+                {section.eyebrow ? <p className="eyebrow">{section.eyebrow}</p> : null}
+                {section.heading ? <Heading text={section.heading} accent={section.accentLines !== false} /> : null}
+                <div className="columns">
+                  {prose(section.body)}
+                  <div className="column-ruled">
+                    {prose(section.body2, section.emphasis ? " emphasis" : "")}
+                    <Links section={section} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {mode === "ruled" && section.eyebrow ? <p className="eyebrow">{section.eyebrow}</p> : null}
+                <div className="columns">
+                  <div>
+                    {mode === "service" && section.eyebrow ? <p className="eyebrow">{section.eyebrow}</p> : null}
+                    {section.heading ? <Heading text={section.heading} accent={section.accentLines !== false} /> : null}
+                    {section.subheading ? <p className="service-subtitle">{section.subheading}</p> : null}
+                  </div>
+                  <div className={mode === "ruled" ? "column-ruled" : undefined}>
+                    {prose(section.body)}
+                    <Links section={section} />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      );
+    }
     const titleAs = section.type === "hero" ? "h1" : "h2";
     const splitCopy = (section.layout === "split" || section.layout === "split-reverse") && !section.image;
     const art = section.type === "hero" && section.image ? " hero-art" : "";
     const cta = section.type === "cta" ? " cta-band" : "";
+    const rule = section.type === "hero" && splitCopy ? " hero-split-rule" : "";
     return (
-      <section key={section.id} id={section.id} className={`${bandClass(section)}${art}${cta}`}>
+      <section key={section.id} id={section.id} className={`${bandClass(section)}${art}${cta}${rule}`}>
         <div className={`wrap ${section.type === "hero" && section.image ? "hero-grid" : layout}`}>
           {splitCopy ? (
             <>
