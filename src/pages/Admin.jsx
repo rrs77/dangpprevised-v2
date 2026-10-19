@@ -216,7 +216,7 @@ function LoginScreen({ password, setPassword, email, setEmail, error, setError, 
           <h1>Sign in</h1>
           <p className="login-intro">Enter your password to edit the website.</p>
           {message && <p className="login-error" role="alert" id="login-error">{message}</p>}
-          <label className="login-field"><span>Email <em className="login-optional">(only if you have an editor account)</em></span>
+          <label className="login-field"><span>Email</span>
             <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" aria-describedby={message ? "login-error" : undefined} />
           </label>
           <label className="login-field"><span>Password</span>
