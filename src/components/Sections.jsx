@@ -155,7 +155,13 @@ function Person({ person, onOpen }) {
   const { summary, full } = personText(person);
   const hasMore = full.length > 0;
   return (
-    <article className={`${person.photo ? "person" : "person no-photo"}${hasMore ? " is-openable" : ""}`}>
+    <article
+      className={`${person.photo ? "person" : "person no-photo"}${hasMore ? " is-openable" : ""}`}
+      onClick={hasMore ? (event) => {
+        if (event.target.closest("a, button")) return;
+        onOpen(person, event.currentTarget.querySelector(".person-open"));
+      } : undefined}
+    >
       {person.photo ? <Portrait person={person} /> : null}
       <div className="person-content">
         <p className="role">{person.role}</p>

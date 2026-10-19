@@ -775,3 +775,11 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); text-wrap: balance; }
   .people-grid .person { display: flex; }
   .person-content { padding: 1.3rem 1.3rem 1.4rem; }
 }
+
+/* Portraits: greyscale by default, easing to full colour on hover, keyboard focus, tap, and in the biography */
+.person .portrait img { filter: grayscale(1); transition: filter 0.45s ease, transform 0.45s ease; }
+.person:hover .portrait img,
+.person:focus-within .portrait img,
+.person:active .portrait img,
+.bio-head .portrait img { filter: grayscale(0); }
+@media (prefers-reduced-motion: reduce) { .person .portrait img { transition: none; } }
