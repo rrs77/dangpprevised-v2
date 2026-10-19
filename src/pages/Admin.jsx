@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const TYPES = ["hero", "text", "stats", "quote", "linkedin", "modes", "diagram", "diagnostic", "people", "insights", "contact", "cta"];
 const BACKGROUNDS = ["paper", "cream", "white", "sage", "deep", "green", "pine", "teal"];
@@ -60,11 +60,11 @@ export default function Admin() {
 
   useEffect(() => { load().catch((reason) => setError(reason.message)); }, []);
 
-  async function login(event) {
+  async function login(event, asEditor) {
     event.preventDefault();
     setError("");
     try {
-      await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password, email }) });
+      await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password, email: asEditor ? email.trim() : "" }) });
       setPassword("");
       await load();
     } catch (reason) {
@@ -96,18 +96,7 @@ export default function Admin() {
 
   if (!session) return <p className="wrap">Loading…</p>;
   if (!session.authenticated) {
-    return (
-      <main className="admin">
-        <form className="login-card stack" onSubmit={login}>
-          <h1>Site admin</h1>
-          <p className="note">Superuser password, or an editor email and password.</p>
-          {error && <p role="alert">{error}</p>}
-          <label><span>Email, for editor accounts</span><input value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" /></label>
-          <label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
-          <button className="primary" type="submit">Sign in</button>
-        </form>
-      </main>
-    );
+    return <LoginScreen password={password} setPassword={setPassword} email={email} setEmail={setEmail} error={error} setError={setError} onSubmit={login} />;
   }
   if (!draft) return <p className="wrap">Loading the draft…</p>;
 
@@ -205,6 +194,50 @@ function moveSection(patch, slug, index, delta) {
     sections.splice(target, 0, item);
   });
 }
+function LoginScreen({ password, setPassword, email, setEmail, error, setError, onSubmit }) {
+  const [asEditor, setAsEditor] = useState(false);
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const passwordRef = useRef(null);
+  const emailRef = useRef(null);
+  useEffect(() => { (asEditor ? emailRef : passwordRef).current?.focus(); }, [asEditor]);
+  const message = error === "Invalid password"
+    ? (asEditor ? "That email and password don't match an editor account." : "That password isn't right. Please try again.")
+    : error;
+  return (
+    <main className="login-page">
+      <img className="login-art" src="/images/constellation.png" alt="" aria-hidden="true" />
+      <div className="login-shell">
+        <a className="login-logo" href="/"><img src="/images/gpp-logo-white.png" alt="Global Place Partners" /></a>
+        <form className="login-panel" noValidate onSubmit={async (event) => {
+          if (!password || (asEditor && !email.trim())) { event.preventDefault(); setError(asEditor ? "Enter your email and password." : "Enter the password."); return; }
+          setBusy(true); try { await onSubmit(event, asEditor); } finally { setBusy(false); } }}>
+          <p className="login-eyebrow">Website admin</p>
+          <h1>{asEditor ? "Editor sign in" : "Sign in"}</h1>
+          <p className="login-intro">{asEditor ? "Use the email and password you were given." : "Enter the admin password to edit the website."}</p>
+          {message && <p className="login-error" role="alert" id="login-error">{message}</p>}
+          {asEditor && (
+            <label className="login-field"><span>Email</span>
+              <input ref={emailRef} type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required aria-invalid={!!message} aria-describedby={message ? "login-error" : undefined} />
+            </label>
+          )}
+          <label className="login-field"><span>Password</span>
+            <span className="login-password">
+              <input ref={passwordRef} type={show ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required aria-invalid={!!message} aria-describedby={message ? "login-error" : undefined} />
+              <button type="button" className="login-toggle" onClick={() => setShow((value) => !value)} aria-pressed={show} aria-label={show ? "Hide password" : "Show password"}>{show ? "Hide" : "Show"}</button>
+            </span>
+          </label>
+          <button className="login-submit" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+          <div className="login-links">
+            <button type="button" className="login-link" onClick={() => { setAsEditor((value) => !value); setError(""); }}>{asEditor ? "Sign in with the admin password" : "Sign in as an editor"}</button>
+            <a className="login-link" href="/">← Back to site</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  );
+}
+
 function emptySection(type) {
   return { id: uid("section"), type, hidden: false, eyebrow: "", heading: "New section", subheading: "", body: "", image: "", imageAlt: "", linkLabel: "", linkHref: "", link2Label: "", link2Href: "", background: "paper", spacing: "normal", layout: "stack", align: "left", items: [] };
 }
