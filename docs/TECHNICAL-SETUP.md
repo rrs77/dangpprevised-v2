@@ -13,7 +13,7 @@
 | Variable | Required | Purpose |
 |---|---|---|
 | `SESSION_SECRET` | **Yes** | Long random string used to sign admin session cookies. The admin will not work without it. Changing it signs everyone out. |
-| `ADMIN_PASSWORD` | **Yes** | The superuser password (sign in with empty email). Change it here to reset it. |
+| `ADMIN_PASSWORD` | **Yes** | The superuser password (the only thing the login page asks for). Change it here to reset it. |
 | `DATABASE_URL` | **Yes in production** | Postgres connection string. Without it, edits on Vercel are not saved permanently. |
 | `DATABASE_SSL` | No | `true`/`false` to force SSL on/off. SSL is used automatically on Vercel or with `sslmode=require`; `sslmode=disable` turns it off. |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | No | Send contact-form emails via Resend. Without them, enquiries are only stored (history tab). |
@@ -78,7 +78,7 @@ It checks public pages and the API, signs in, edits and publishes a draft (then 
 
 ## Notes for the technical team (from the editor side)
 
-- Sign-in page: an optional email field above the password. Blank email + `ADMIN_PASSWORD` = superuser; email + password = editor account. The `/api/admin/login` endpoint and stored credentials are unchanged. Sessions last 24 hours.
+- Sign-in page: password only (`ADMIN_PASSWORD`). The `/api/admin/login` endpoint still accepts an optional `email` for editor accounts, but the page no longer shows an email field, so editor accounts can only sign in via the API until a field is added back. Sessions last 24 hours.
 - Insights articles, LinkedIn posts, media uploads and editor accounts are saved live; everything else is draft until Publish.
 - The last 40 published revisions are kept; Restore (superuser only) makes that version live and replaces the draft.
 - Uploads: JPG, PNG, WebP or GIF, up to 8 MB.

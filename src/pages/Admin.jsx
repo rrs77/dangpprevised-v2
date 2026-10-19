@@ -22,7 +22,6 @@ function uid(prefix) {
 export default function Admin() {
   const [session, setSession] = useState(null);
   const [password, setPassword] = useState("");
-  const [email, setEmail] = useState("");
   const [draft, setDraft] = useState(null);
   const [insights, setInsights] = useState([]);
   const [linkedinPosts, setLinkedinPosts] = useState([]);
@@ -64,7 +63,7 @@ export default function Admin() {
     event.preventDefault();
     setError("");
     try {
-      await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password, email: email.trim() }) });
+      await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password }) });
       setPassword("");
       await load();
     } catch (reason) {
@@ -96,7 +95,7 @@ export default function Admin() {
 
   if (!session) return <p className="wrap">Loading…</p>;
   if (!session.authenticated) {
-    return <LoginScreen password={password} setPassword={setPassword} email={email} setEmail={setEmail} error={error} setError={setError} onSubmit={login} />;
+    return <LoginScreen password={password} setPassword={setPassword} error={error} setError={setError} onSubmit={login} />;
   }
   if (!draft) return <p className="wrap">Loading the draft…</p>;
 
@@ -194,43 +193,30 @@ function moveSection(patch, slug, index, delta) {
     sections.splice(target, 0, item);
   });
 }
-function LoginScreen({ password, setPassword, email, setEmail, error, setError, onSubmit }) {
+function LoginScreen({ password, setPassword, error, setError, onSubmit }) {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const passwordRef = useRef(null);
   useEffect(() => { passwordRef.current?.focus(); }, []);
-  const message = error === "Invalid password"
-    ? (email.trim() ? "That email and password don't match. Check both and try again." : "That password isn't right. Please try again.")
-    : error;
+  const message = error === "Invalid password" ? "That password isn't right. Please try again." : error;
   return (
     <main className="login-page">
-      <img className="login-art" src="/images/constellation.webp" alt="" aria-hidden="true" />
-      <div className="login-shell">
-        <a className="login-logo" href="/"><img src="/images/gpp-logo-cream.png" alt="Global Place Partners" /></a>
-        <form className="login-panel" noValidate onSubmit={async (event) => {
-          if (!password) { event.preventDefault(); setError("Enter the password."); return; }
-          setBusy(true);
-          try { await onSubmit(event); } finally { setBusy(false); }
-        }}>
-          <p className="login-eyebrow">Website admin</p>
-          <h1>Sign in</h1>
-          <p className="login-intro">Enter your password to edit the website.</p>
-          {message && <p className="login-error" role="alert" id="login-error">{message}</p>}
-          <label className="login-field"><span>Email</span>
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" aria-describedby={message ? "login-error" : undefined} />
-          </label>
-          <label className="login-field"><span>Password</span>
-            <span className="login-password">
-              <input ref={passwordRef} type={show ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required aria-invalid={!!message} aria-describedby={message ? "login-error" : undefined} />
-              <button type="button" className="login-toggle" onClick={() => setShow((value) => !value)} aria-pressed={show} aria-label={show ? "Hide password" : "Show password"}>{show ? "Hide" : "Show"}</button>
-            </span>
-          </label>
-          <button className="login-submit" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-          <div className="login-links">
-            <a className="login-link" href="/">← Back to site</a>
-          </div>
-        </form>
-      </div>
+      <form className="login-panel" noValidate onSubmit={async (event) => {
+        if (!password) { event.preventDefault(); setError("Enter the password."); return; }
+        setBusy(true);
+        try { await onSubmit(event); } finally { setBusy(false); }
+      }}>
+        <a className="login-logo" href="/"><img src="/images/gpp-logo-green.png" alt="Global Place Partners" /></a>
+        <h1>Admin Login</h1>
+        <p className="login-intro">Enter your password to manage site content.</p>
+        {message && <p className="login-error" role="alert" id="login-error">{message}</p>}
+        <span className="login-password">
+          <input ref={passwordRef} type={show ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" aria-label="Password" autoComplete="current-password" required aria-invalid={!!message} aria-describedby={message ? "login-error" : undefined} />
+          <button type="button" className="login-toggle" onClick={() => setShow((value) => !value)} aria-pressed={show} aria-label={show ? "Hide password" : "Show password"}>{show ? "Hide" : "Show"}</button>
+        </span>
+        <button className="login-submit" type="submit" disabled={busy}>{busy ? "Logging in…" : "Log in"}</button>
+        <a className="login-link" href="/">← Back to site</a>
+      </form>
     </main>
   );
 }
